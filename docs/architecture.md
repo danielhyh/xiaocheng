@@ -48,7 +48,7 @@ drivers/
     __init__.py   # 根据 USE_MOCK 选择实现
     real.py       # RealMotorDriver
     mock.py       # MockMotorDriver
-  adc/            # 待实现：ADS1115 over I2C
+  adc/            # ✅ ADS1115 over I2C (Phase 2.pre)
   camera/         # Phase 3
   servo/          # Phase 6
   led/            # Phase 8
@@ -70,7 +70,7 @@ Mock 实现要求：
 | `Dispatcher` | 解析 envelope type，路由到对应子系统方法 |
 | `ModeManager` | 全局状态机（manual / avoid / track / nav / voice） |
 | `SafetyWatchdog` | WS 断连/超时 500ms 停车；强制回 manual |
-| `TelemetryPublisher` | 10Hz 推送 `tel.motion`；1Hz 推送 mock `tel.sensors` |
+| `TelemetryPublisher` | 10Hz 推送 `tel.motion`；1Hz 推送 `tel.sensors`（真实电压 + CPU 温度） |
 | `MockSwitch` | `config.USE_MOCK` 总开关 |
 
 **模式切换规则：**
@@ -117,7 +117,7 @@ type 前缀规则：`cmd.*`（前端→后端）/ `tel.*`（后端→前端，�
 | type | payload | 频率 | Phase |
 |---|---|---|---|
 | `tel.motion` | 方向、速度 | 10-30Hz | P2 ✅ |
-| `tel.sensors` | 电压、CPU温/占用、WiFi、WS延迟 | 1Hz | P2.2 ✅（mock 值）；真实电压待 ADC |
+| `tel.sensors` | 电池电压/电量/等级、CPU温度 | 1Hz | P2.pre ✅（ADS1115 真实电压 + sysfs CPU 温度） |
 | `tel.ultrasonic` | 各方向距离 | 10Hz | P4 |
 | `tel.detection` | YOLO bbox list | 帧率 | P5 |
 | `tel.nav` | 位姿、路径 | 按需 | P14 |
@@ -209,7 +209,7 @@ xiaocheng/
 │   │   └── telemetry.py
 │   ├── subsystems/
 │   │   ├── motion.py        ✅
-│   │   ├── sensing.py       (待实现)
+│   │   ├── sensing.py       ✅ (ADS1115 电压 + CPU 温度)
 │   │   ├── vision.py        (P3)
 │   │   ├── gimbal.py        (P6)
 │   │   ├── lighting.py      (P8)
@@ -218,7 +218,7 @@ xiaocheng/
 │   │   └── navigation.py    (P14)
 │   └── drivers/
 │       ├── motor/           ✅ real.py + mock.py
-│       ├── adc/             (待实现)
+│       ├── adc/             ✅ real.py + mock.py (ADS1115)
 │       ├── camera/          (P3)
 │       ├── ultrasonic/      (P4)
 │       ├── servo/           (P6)

@@ -32,21 +32,22 @@
 | `app/api/websocket.py` | WS envelope 解析 + 路由 | ✅ P2.2 完成 |
 | `app/business/dispatcher.py` | 指令分发到子系统 | ✅ P2.2 完成 |
 | `app/business/safety.py` | Watchdog：WS 断连/超时 500ms 停车 | ✅ P2.2 完成 |
-| `app/business/telemetry.py` | `tel.motion` + mock `tel.sensors` 推送 | ✅ P2.2 完成 |
-| `app/drivers/adc/` | ADS1115 I2C ADC 电池电压读取，含 Real/Mock | ⏳ 待实现/硬件验证 |
-| `app/subsystems/sensing.py` | 遥测汇总（真实电压/CPU/延迟） | ⏳ 待实现 |
+| `app/business/telemetry.py` | `tel.motion` + `tel.sensors` 推送（真实电压 + CPU 温度） | ✅ P2.pre 完成 |
+| `app/drivers/adc/` | ADS1115 I2C ADC 电池电压读取，含 Real/Mock | ✅ P2.pre 完成 |
+| `app/subsystems/sensing.py` | 传感器汇总（真实电压/电量/CPU温度） | ✅ P2.pre 完成 |
 | `frontend/` | Vue 控制面板：虚拟摇杆、WASD、刹车、电量/状态 HUD | ✅ P2.2 完成 |
 
 ---
 
 ## 当前阶段
 
-**Phase 2.2 已完成；当前进入 Phase 2.pre（集成前电源验收）**
+**Phase 2.pre 已完成（电源验收 + ADS1115 电压监控）**
 
-1. ☐ LM2596S 降压模块接线并调至 5.0V（未接 OPi 前先测量）
-2. ☐ ADS1115 接 I2C1_M4（物理脚 3/5），20KΩ+10KΩ 分压（÷3），补裸验证脚本并实测读数
-3. ☐ ADS1115 驱动与 sensing 子系统落地，接入真实电压遥测
-4. ☐ 全链路端对端测试（手机→Vue→WS→FastAPI→GPIO→电机）
+1. ☑ LM2596S 降压模块接线并调至 5.0V
+2. ☑ ADS1115 接 I2C1_M4（物理脚 3/5），20KΩ+10KΩ 分压（÷3），I2C 通信正常
+3. ☑ ADS1115 驱动（Real/Mock）与 sensing 子系统落地，接入真实电压遥测
+4. ☐ 全链路端对端测试（手机→Vue→WS→FastAPI→GPIO→电机 + 真实电压显示）
+5. ☐ 万用表校准分压比（当前理论值 3.0，可能需微调）
 
 **下一阶段：Phase 3 — FPV 摄像头（OV5640 + OpenCV + MJPEG 流）**
 

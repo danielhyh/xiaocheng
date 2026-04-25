@@ -47,10 +47,6 @@
 
 ## 2. 机械层级与走线原则
 
-![xiaocheng_middle_layer](D:\Project\hardware\smart-car\pi5\xiaocheng\svg\xiaocheng_middle_layer.svg)
-
-![xiaocheng_top_layer](D:\Project\hardware\smart-car\pi5\xiaocheng\svg\xiaocheng_top_layer.svg)
-
 当前布局按三层区域组织：
 
 ```mermaid

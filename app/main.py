@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app import config
 from app.subsystems.motion import MotionSubsystem
+from app.subsystems.sensing import SensingSubsystem
 from app.business.mode_manager import ModeManager
 from app.business.dispatcher import Dispatcher
 from app.business.safety import SafetyWatchdog
@@ -41,10 +42,11 @@ logger = logging.getLogger(__name__)
 #  全局组件
 # ============================================================
 motion = MotionSubsystem()
+sensing = SensingSubsystem()
 mode_manager = ModeManager()
 dispatcher = Dispatcher(motion, mode_manager)
 safety = SafetyWatchdog(motion, mode_manager)
-telemetry = TelemetryPublisher(motion)
+telemetry = TelemetryPublisher(motion, sensing)
 
 
 # ============================================================
@@ -58,6 +60,7 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 50)
 
     motion.init()
+    sensing.init()
 
     # 注入依赖到 API 层
     ws_api.init(dispatcher, safety, telemetry)
@@ -73,6 +76,7 @@ async def lifespan(app: FastAPI):
     logger.info("小橙 关闭中...")
     safety.stop()
     safety_task.cancel()
+    sensing.cleanup()
     motion.cleanup()
     logger.info("小橙 已关闭")
 
