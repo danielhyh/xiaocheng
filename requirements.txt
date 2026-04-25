@@ -1,0 +1,10 @@
+# 小橙 Phase 2.2 依赖
+# PC 开发 (mock 模式) 只需要 fastapi + uvicorn
+# 开发板上额外需要 wiringpi
+
+fastapi>=0.110
+uvicorn[standard]>=0.29
+websockets>=12.0
+
+# 开发板专用 (PC 上不装也能跑 mock)
+# wiringpi          # pip install wiringpi (需在 Orange Pi 上编译)
