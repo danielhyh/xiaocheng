@@ -26,10 +26,9 @@ export const useCarStore = defineStore('car', () => {
   // 传感器遥测 (tel.sensors)
   const sensors = reactive({
     battery_voltage: 0,
-    cpu_temp: 0,
-    cpu_usage: 0,
-    wifi_rssi: 0,
-    ws_latency_ms: 0,
+    battery_percent: 0,
+    battery_level: 'ok' as 'ok' | 'low' | 'critical' | 'unknown',
+    cpu_temp: null as number | null,
   })
 
   function updateMotion(payload: any) {

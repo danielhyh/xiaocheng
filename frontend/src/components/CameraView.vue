@@ -1,15 +1,75 @@
 <script setup lang="ts">
-// Phase 3: 替换为 <img :src="mjpegUrl" /> MJPEG 流
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+
+// MJPEG 流地址: 与后端同源
+const streamUrl = computed(() => {
+  const base = `${location.protocol}//${location.hostname}:${location.port || 8000}`
+  return `${base}/stream/camera`
+})
+
+const isLoading = ref(true)
+const hasError = ref(false)
+let retryTimer: number | null = null
+
+function onLoad() {
+  isLoading.value = false
+  hasError.value = false
+}
+
+function onError() {
+  isLoading.value = false
+  hasError.value = true
+  // 自动重试
+  scheduleRetry()
+}
+
+function scheduleRetry() {
+  if (retryTimer) return
+  retryTimer = window.setTimeout(() => {
+    retryTimer = null
+    hasError.value = false
+    isLoading.value = true
+    // 通过改变 key 强制重新加载 img
+    imgKey.value++
+  }, 3000)
+}
+
+const imgKey = ref(0)
+
+onUnmounted(() => {
+  if (retryTimer) {
+    clearTimeout(retryTimer)
+    retryTimer = null
+  }
+})
 </script>
 
 <template>
   <div class="camera-view">
-    <div class="placeholder">
+    <!-- MJPEG 流 -->
+    <img
+      v-if="!hasError"
+      :key="imgKey"
+      :src="streamUrl"
+      class="stream"
+      alt="FPV Camera"
+      @load="onLoad"
+      @error="onError"
+    />
+
+    <!-- 加载中 -->
+    <div v-if="isLoading && !hasError" class="placeholder">
+      <div class="spinner"></div>
+      <span class="label">连接摄像头...</span>
+    </div>
+
+    <!-- 离线 -->
+    <div v-if="hasError" class="placeholder">
       <div class="cam-icon">
         <div class="cam-inner"></div>
       </div>
       <span class="label">Camera offline</span>
-      <span class="phase">Phase 3</span>
+      <span class="phase">重连中...</span>
     </div>
 
     <!-- HUD 叠加层: 十字准星 + 角落框 -->
@@ -25,8 +85,16 @@
 .camera-view {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
+  background: #0a0c10;
 }
+
+.stream {
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+
 .placeholder {
+  position: absolute;
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   color: #555860; font-size: 13px; font-weight: 500;
 }
@@ -36,6 +104,15 @@
 }
 .cam-inner { width: 16px; height: 16px; border: 2px solid #555860; border-radius: 50%; }
 .phase { font-size: 11px; }
+
+.spinner {
+  width: 28px; height: 28px;
+  border: 2px solid #333;
+  border-top-color: #e8842c;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .crosshair {
   position: absolute; top: 50%; left: 50%;

@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-04-26
+
+**完成：**
+- Phase 3 FPV 摄像头流 — 软件侧全链路实现
+  - `drivers/camera/`: Real (OpenCV V4L2) + Mock (动态测试图案) 双实现,遵循 Protocol 规范
+  - `subsystems/vision.py`: 独立采集线程 + JPEG 编码 + threading.Event 通知,零阻塞主循环
+  - `api/stream.py`: MJPEG StreamingResponse (`/stream/camera`) + 状态查询 (`/stream/status`)
+  - `config.py`: 新增 CAMERA_* 参数 (设备号/分辨率/帧率/JPEG质量/流帧率)
+  - `main.py`: 接入 VisionSubsystem 生命周期 + stream_api 依赖注入
+  - `frontend/CameraView.vue`: `<img>` 消费 MJPEG 流,含加载态/离线态/自动重连
+  - `requirements.txt`: 新增 opencv-python-headless + numpy
+- 全部 8 个已有测试通过,Mock 模式 app 加载正常
+
+**问题：**
+- 无
+
+**明天计划：**
+- 部署到 Orange Pi,接 OV5640 实测真实画面
+- 确认 /dev/video0 设备号,必要时调整 CAMERA_DEVICE
+- 端到端验收: 手机浏览器打开 FPV 流
+
+---
+
 ## 模板（复制这段开始写）
 
 ```

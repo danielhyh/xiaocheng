@@ -1,10 +1,12 @@
-# 小橙 Phase 2.2 依赖
-# PC 开发 (mock 模式) 只需要 fastapi + uvicorn
+# 小橙 Phase 3 依赖
+# PC 开发 (mock 模式) 只需要 fastapi + uvicorn + opencv
 # 开发板上额外需要 wiringpi
 
 fastapi>=0.110
 uvicorn[standard]>=0.29
 websockets>=12.0
+opencv-python-headless>=4.9    # MJPEG 编码 + 摄像头采集 (headless 无 GUI 依赖)
+numpy>=1.24                    # OpenCV 帧数据
 
 # 开发板专用 (PC 上不装也能跑 mock)
 # wiringpi          # pip install wiringpi (需在 Orange Pi 上编译)
