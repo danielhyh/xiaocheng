@@ -68,9 +68,19 @@
 
 ## 快速上手
 
+> ⚠️ **所有 Python 命令必须在 `.venv` 虚拟环境中执行。**
+
 ```bash
-# 开发板（真实模式）
-cd ~/xiaocheng
+# 进入虚拟环境（Windows PowerShell）
+.venv\Scripts\activate
+
+# 进入虚拟环境（Linux / Orange Pi）
+source .venv/bin/activate
+```
+
+```bash
+# 开发板（真实模式，先激活 venv）
+source .venv/bin/activate
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 # PC 端（Mock 模式，无需硬件）

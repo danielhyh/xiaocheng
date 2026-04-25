@@ -4,11 +4,16 @@
 
 ## 快速启动
 
+> ⚠️ **所有 Python 命令必须在 `.venv` 虚拟环境中执行。**
+
 ### PC 开发 (Mock 模式)
 
 ```bash
+# 激活虚拟环境
+.venv\Scripts\activate        # Windows PowerShell
+# source .venv/bin/activate   # Linux / macOS
+
 # 后端
-cd xiaocheng
 pip install -r requirements.txt
 XIAOCHENG_MOCK=1 uvicorn app.main:app --reload
 
@@ -18,18 +23,22 @@ npm install
 npm run dev
 ```
 
-打开 `http://localhost:5173`,摇杆和 HUD 已可交互。
+打开 `http://localhost:5173`，摇杆和 HUD 已可交互。
 
 ### 开发板部署
 
 ```bash
-# 需要预装 wiringpi
+# 激活虚拟环境
+source .venv/bin/activate
+
+# 需要预装 wiringpi（从源码编译）
 uvicorn app.main:app --host 0.0.0.0
 ```
 
 ### 运行测试
 
 ```bash
+source .venv/bin/activate   # 或 Windows: .venv\Scripts\activate
 XIAOCHENG_MOCK=1 python -m pytest tests/ -v
 ```
 

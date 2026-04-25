@@ -1,64 +1,107 @@
-# 仓库协作指南
+# 小橙（XiaoCheng）— 智能四驱轮式机器人
 
-## 语言约定
+> Orange Pi 5 Pro (RK3588S) 驱动的四轮小车，支持 Web 远程控制、FPV 画面、NPU 视觉推理。
 
-- 始终使用中文响应用户，除非用户明确要求使用其他语言。
+---
 
-## 项目概览
+## 一句话定位
 
-小橙是一个 4WD 智能小车控制栈。后端是 FastAPI 应用，提供 HTTP、WebSocket 控制接口和摄像头流占位接口。前端是 Vue 3 + Pinia + Vite 控制面板。电机硬件封装在 `app/drivers/motor` 后面，通过 `XIAOCHENG_MOCK=1` 选择 mock 实现，便于在 PC 上开发和测试。
+手机 → Vue 控制面板 → WebSocket → FastAPI → GPIO → 电机。可扩展至视觉追踪、语音控制、SLAM 导航。
 
-## 目录结构
+---
 
-- `app/main.py` 组装 FastAPI 应用、生命周期、子系统、业务服务和路由。
-- `app/config.py` 集中维护板级常量、电机引脚/PWM 设置、WebSocket 时间参数和遥测间隔。
-- `app/api/` 包含 HTTP、WebSocket 和 stream 路由。
-- `app/business/` 包含命令分发、模式状态、安全看门狗和遥测发布。
-- `app/subsystems/motion.py` 将归一化摇杆命令 `vx`、`vy` 转换为左右电机速度。
-- `app/drivers/motor/` 根据 `config.USE_MOCK` 选择 `mock.py` 或 `real.py`。
-- `frontend/src/` 包含 Vue 应用、UI 组件、WebSocket composable 和 Pinia store。
-- `tests/` 当前主要覆盖运动映射行为。
+## 技术栈
 
-## 运行命令
+| 层级 | 技术 |
+|---|---|
+| 硬件 | Orange Pi 5 Pro (RK3588S 8核 6TOPS NPU)，L298N 电机驱动，EVE 18650 2S1P 7.4V,18650锂电池3A过充保护模块, LM2596S, HC-SR04超声波模块, ZY-ADS1115, 舵机SG90+云台, IIR520驱动模块, 5v3wLED灯珠*2, PCA9685A, 500万像素OV5640摄像头, 小喇叭扬声器8Ω2w, USB转音频免驱, 可编程RGB灯带 |
+| 固件/驱动 | Python 3，sysfs PWM，wiringOP-Python（已编译） |
+| 后端 | FastAPI + uvicorn，WebSocket，asyncio |
+| 前端 | Vue 3 + TypeScript + Pinia + Vite |
+| 视觉（规划） | OpenCV，YOLOv8n，RKNN（NPU 推理） |
+| OS | Ubuntu on TF 卡（64GB A2 级），静态 IP via NetworkManager |
 
-在仓库根目录运行后端测试：
+---
 
-```powershell
-$env:XIAOCHENG_MOCK = "1"
-python -m pytest tests/ -v
+## 核心模块
+
+| 模块/文件 | 职责 | 状态 |
+|---|---|---|
+| `app/drivers/motor/` | sysfs PWM + GPIO 电机驱动，含 Real/Mock 双实现 | ✅ P2.1 完成 |
+| `app/subsystems/motion.py` | 前后左右差速，业务语义层 | ✅ P2.1 完成 |
+| `app/api/websocket.py` | WS envelope 解析 + 路由 | ✅ P2.2 完成 |
+| `app/business/dispatcher.py` | 指令分发到子系统 | ✅ P2.2 完成 |
+| `app/business/safety.py` | Watchdog：WS 断连/超时 500ms 停车 | ✅ P2.2 完成 |
+| `app/business/telemetry.py` | `tel.motion` + `tel.sensors` 推送（真实电压 + CPU 温度） | ✅ P2.pre 完成 |
+| `app/drivers/adc/` | ADS1115 I2C ADC 电池电压读取，含 Real/Mock | ✅ P2.pre 完成 |
+| `app/subsystems/sensing.py` | 传感器汇总（真实电压/电量/CPU温度） | ✅ P2.pre 完成 |
+| `frontend/` | Vue 控制面板：虚拟摇杆、WASD、刹车、电量/状态 HUD | ✅ P2.2 完成 |
+
+---
+
+## 当前阶段
+
+**Phase 2.pre 已完成（电源验收 + ADS1115 电压监控）**
+
+1. ☑ LM2596S 降压模块接线并调至 5.0V
+2. ☑ ADS1115 接 I2C1_M4（物理脚 3/5），20KΩ+10KΩ 分压（÷3），I2C 通信正常
+3. ☑ ADS1115 驱动（Real/Mock）与 sensing 子系统落地，接入真实电压遥测
+4. ☐ 全链路端对端测试（手机→Vue→WS→FastAPI→GPIO→电机 + 真实电压显示）
+5. ☐ 万用表校准分压比（当前理论值 3.0，可能需微调）
+
+**下一阶段：Phase 3 — FPV 摄像头（OV5640 + OpenCV + MJPEG 流）**
+
+---
+
+## 文档索引
+
+| 文档 | 内容 |
+|---|---|
+| `docs/architecture.md` | 六层架构、WebSocket 协议、Mock 模式、并发模型 |
+| `docs/hardware-wiring.md` | 引脚映射、接线图、电源拓扑、已踩坑 |
+| `docs/decisions.md` | 重大技术决策及理由（ADR） |
+| `docs/known-issues.md` | 已知问题与 workaround |
+| `docs/changelog.md` | 每日进展（最近 4 周） |
+| `docs/archive/` | 归档的历史 changelog |
+
+---
+
+## 快速上手
+
+> ⚠️ **所有 Python 命令必须在 `.venv` 虚拟环境中执行。**
+
+```bash
+# 进入虚拟环境（Windows PowerShell）
+.venv\Scripts\activate
+
+# 进入虚拟环境（Linux / Orange Pi）
+source .venv/bin/activate
 ```
 
-PC/mock 模式启动后端：
+```bash
+# 开发板（真实模式，先激活 venv）
+source .venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 
-```powershell
-$env:XIAOCHENG_MOCK = "1"
-uvicorn app.main:app --reload
+# PC 端（Mock 模式，无需硬件）
+XIAOCHENG_MOCK=1 uvicorn app.main:app --reload
+
+# 前端开发
+cd frontend && npm run dev
 ```
 
-启动前端：
+后端测试：
 
-```powershell
-Set-Location frontend
-npm run dev
+```bash
+XIAOCHENG_MOCK=1 python -m pytest tests/ -v
 ```
 
-开发板运行方式，需先安装 `wiringpi` 等板端依赖：
+---
 
-```powershell
-uvicorn app.main:app --host 0.0.0.0
-```
+## 关键约束 / 注意事项
 
-## 开发注意事项
-
-- 本地开发和测试默认使用 mock 模式，除非任务明确要求验证 Orange Pi 硬件行为。
-- 硬件相关改动应尽量限制在 driver/subsystem 边界内；上层代码应依赖接口和子系统方法，而不是直接依赖 GPIO/PWM 细节。
-- WebSocket 消息使用 envelope 结构：`type`、`ts`、可选 `id` 和 `payload`。
-- 新增命令族通常需要增加子系统/驱动、注册 dispatcher handler，并更新前端组件或 store。
-- 源码注释和文档大多是中文 UTF-8。如果 PowerShell 显示乱码，优先使用 UTF-8 工具读取，或先调整终端代码页后再判断文件内容。
-- `frontend/node_modules` 已存在于工作区；除非确实要排查依赖问题，否则避免扫描或编辑它。
-
-## 验证方式
-
-- 后端逻辑改动：设置 `XIAOCHENG_MOCK=1` 后运行 `python -m pytest tests/ -v`。
-- 前端改动：在 `frontend` 目录运行 `npm run build`。
-- 如果修改 WebSocket 协议，同时检查 `app/api/websocket.py`、`app/business/dispatcher.py` 和 `frontend/src/composables/useWebSocket.ts`。
+- **wiringOP-Python 必须从源码编译**，不能 pip 安装：`github.com/orangepi-xunlong/wiringOP`（next 分支）
+- **LM2596S 最低输入 ~7V** 才能稳定输出 5V，电池低于该电压会导致 OPi 无声断电 → ADS1115 电压监控是**安全必选项**，不是可选功能
+- **静态 IP 通过 NetworkManager** 配置（`nmcli`/`nmtui`），不要直接改 `/etc/network/interfaces`
+- **PWM 极性**：RK3588S 上 `PWM_INVERTED = True`（已在 motor.py 实测确认）
+- **I2C 总线选择**：ADS1115 挂 I2C1_M4（物理脚 3/5），已确认与电机引脚无冲突
