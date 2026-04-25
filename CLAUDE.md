@@ -105,3 +105,46 @@ XIAOCHENG_MOCK=1 python -m pytest tests/ -v
 - **静态 IP 通过 NetworkManager** 配置（`nmcli`/`nmtui`），不要直接改 `/etc/network/interfaces`
 - **PWM 极性**：RK3588S 上 `PWM_INVERTED = True`（已在 motor.py 实测确认）
 - **I2C 总线选择**：ADS1115 挂 I2C1_M4（物理脚 3/5），已确认与电机引脚无冲突
+
+---
+
+## 小橙网络代理
+
+> 小橙（Orange Pi）访问 GitHub / PyPI 需要走本地代理，否则超时。
+
+**代理地址：`192.168.0.103:7897`（HTTP/HTTPS）**
+
+在小橙上执行任何需要联网的命令前，先设置代理环境变量：
+
+```bash
+export http_proxy=http://192.168.0.103:7897
+export https_proxy=http://192.168.0.103:7897
+```
+
+或者一行前缀写法（临时生效）：
+
+```bash
+https_proxy=http://192.168.0.103:7897 http_proxy=http://192.168.0.103:7897 git pull
+```
+
+**git 拉取代码：**
+
+```bash
+cd /root/xiaocheng
+export http_proxy=http://192.168.0.103:7897
+export https_proxy=http://192.168.0.103:7897
+git pull
+```
+
+**pip 安装依赖：**
+
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt \
+  --index-url https://pypi.org/simple \
+  -i https://mirrors.aliyun.com/pypi/simple/   # 可选：换国内镜像加速
+# 或直接走代理
+https_proxy=http://192.168.0.103:7897 pip install -r requirements.txt
+```
+
+> ⚠️ 代理仅在局域网内有效，确保运行代理的 PC（192.168.0.103）与小橙在同一网段且代理软件已开启「允许局域网连接」。
