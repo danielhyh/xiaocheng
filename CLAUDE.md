@@ -41,15 +41,7 @@
 
 ## 当前阶段
 
-**Phase 2.pre 已完成（电源验收 + ADS1115 电压监控）**
-
-1. ☑ LM2596S 降压模块接线并调至 5.0V
-2. ☑ ADS1115 接 I2C1_M4（物理脚 3/5），20KΩ+10KΩ 分压（÷3），I2C 通信正常
-3. ☑ ADS1115 驱动（Real/Mock）与 sensing 子系统落地，接入真实电压遥测
-4. ☐ 全链路端对端测试（手机→Vue→WS→FastAPI→GPIO→电机 + 真实电压显示）
-5. ☐ 万用表校准分压比（当前理论值 3.0，可能需微调）
-
-**下一阶段：Phase 3 — FPV 摄像头（OV5640 + OpenCV + MJPEG 流）**
+> 📌 **当前阶段信息统一在 `docs/roadmap.md` 维护，此处不再重复。** 请查阅 roadmap 底部的「当前阶段」章节。
 
 ---
 
@@ -57,6 +49,7 @@
 
 | 文档 | 内容 |
 |---|---|
+| `docs/roadmap.md` | 开发阶段路线图、当前阶段进度（**唯一维护点**） |
 | `docs/architecture.md` | 六层架构、WebSocket 协议、Mock 模式、并发模型 |
 | `docs/hardware-wiring.md` | 引脚映射、接线图、电源拓扑、已踩坑 |
 | `docs/decisions.md` | 重大技术决策及理由（ADR） |

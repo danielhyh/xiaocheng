@@ -41,15 +41,7 @@
 
 ## 当前阶段
 
-**Phase 2.pre 已完成（电源验收 + ADS1115 电压监控）**
-
-1. ☑ LM2596S 降压模块接线并调至 5.0V
-2. ☑ ADS1115 接 I2C1_M4（物理脚 3/5），20KΩ+10KΩ 分压（÷3），I2C 通信正常
-3. ☑ ADS1115 驱动（Real/Mock）与 sensing 子系统落地，接入真实电压遥测
-4. ☐ 全链路端对端测试（手机→Vue→WS→FastAPI→GPIO→电机 + 真实电压显示）
-5. ☐ 万用表校准分压比（当前理论值 3.0，可能需微调）
-
-**下一阶段：Phase 3 — FPV 摄像头（OV5640 + OpenCV + MJPEG 流）**
+> 📌 **当前阶段信息统一在 `docs/roadmap.md` 维护，此处不再重复。** 请查阅 roadmap 底部的「当前阶段」章节。
 
 ---
 
@@ -57,6 +49,7 @@
 
 | 文档 | 内容 |
 |---|---|
+| `docs/roadmap.md` | 开发阶段路线图、当前阶段进度（**唯一维护点**） |
 | `docs/architecture.md` | 六层架构、WebSocket 协议、Mock 模式、并发模型 |
 | `docs/hardware-wiring.md` | 引脚映射、接线图、电源拓扑、已踩坑 |
 | `docs/decisions.md` | 重大技术决策及理由（ADR） |
@@ -105,3 +98,46 @@ XIAOCHENG_MOCK=1 python -m pytest tests/ -v
 - **静态 IP 通过 NetworkManager** 配置（`nmcli`/`nmtui`），不要直接改 `/etc/network/interfaces`
 - **PWM 极性**：RK3588S 上 `PWM_INVERTED = True`（已在 motor.py 实测确认）
 - **I2C 总线选择**：ADS1115 挂 I2C1_M4（物理脚 3/5），已确认与电机引脚无冲突
+
+---
+
+## 小橙网络代理
+
+> 小橙（Orange Pi）访问 GitHub / PyPI 需要走本地代理，否则超时。
+
+**代理地址：`192.168.0.103:7897`（HTTP/HTTPS）**
+
+在小橙上执行任何需要联网的命令前，先设置代理环境变量：
+
+```bash
+export http_proxy=http://192.168.0.103:7897
+export https_proxy=http://192.168.0.103:7897
+```
+
+或者一行前缀写法（临时生效）：
+
+```bash
+https_proxy=http://192.168.0.103:7897 http_proxy=http://192.168.0.103:7897 git pull
+```
+
+**git 拉取代码：**
+
+```bash
+cd /root/xiaocheng
+export http_proxy=http://192.168.0.103:7897
+export https_proxy=http://192.168.0.103:7897
+git pull
+```
+
+**pip 安装依赖：**
+
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt \
+  --index-url https://pypi.org/simple \
+  -i https://mirrors.aliyun.com/pypi/simple/   # 可选：换国内镜像加速
+# 或直接走代理
+https_proxy=http://192.168.0.103:7897 pip install -r requirements.txt
+```
+
+> ⚠️ 代理仅在局域网内有效，确保运行代理的 PC（192.168.0.103）与小橙在同一网段且代理软件已开启「允许局域网连接」。
