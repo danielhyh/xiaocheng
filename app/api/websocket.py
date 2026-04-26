@@ -61,7 +61,7 @@ async def ws_control(ws: WebSocket):
                 continue
 
             # 分发指令
-            reply = _dispatcher.dispatch(message)
+            reply = await _dispatcher.dispatch(message)
             if reply:
                 await ws.send_json(reply)
 

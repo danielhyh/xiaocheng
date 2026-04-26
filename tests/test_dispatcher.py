@@ -1,13 +1,16 @@
 import os
+import asyncio
 
 os.environ["XIAOCHENG_MOCK"] = "1"
 
+import pytest
 from app.business.dispatcher import Dispatcher
 from app.business.mode_manager import ModeManager
 from app.subsystems.motion import MotionSubsystem
 
 
-def test_cmd_brake_dispatches_to_motion_brake():
+@pytest.mark.asyncio
+async def test_cmd_brake_dispatches_to_motion_brake():
     motion = MotionSubsystem()
     mode_manager = ModeManager()
     dispatcher = Dispatcher(motion, mode_manager)
@@ -15,7 +18,7 @@ def test_cmd_brake_dispatches_to_motion_brake():
     motion.init()
     motion.handle_command(0.5, 0.8)
 
-    reply = dispatcher.dispatch({
+    reply = await dispatcher.dispatch({
         "type": "cmd.brake",
         "id": "brake-1",
         "payload": {},
@@ -33,14 +36,15 @@ def test_cmd_brake_dispatches_to_motion_brake():
     motion.cleanup()
 
 
-def test_cmd_brake_temporarily_suppresses_stale_motion():
+@pytest.mark.asyncio
+async def test_cmd_brake_temporarily_suppresses_stale_motion():
     motion = MotionSubsystem()
     mode_manager = ModeManager()
     dispatcher = Dispatcher(motion, mode_manager)
 
     motion.init()
-    dispatcher.dispatch({"type": "cmd.brake", "payload": {}})
-    dispatcher.dispatch({"type": "cmd.motion", "payload": {"vx": 0, "vy": 1}})
+    await dispatcher.dispatch({"type": "cmd.brake", "payload": {}})
+    await dispatcher.dispatch({"type": "cmd.motion", "payload": {"vx": 0, "vy": 1}})
 
     state = motion.telemetry
     assert state["speed"] == 0

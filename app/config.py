@@ -74,6 +74,18 @@ CAMERA_JPEG_QUALITY = 70          # JPEG 压缩质量 (0-100, 越高越清晰但
 CAMERA_STREAM_FPS = 20            # MJPEG 流输出帧率 (可低于采集帧率,省带宽)
 
 # ============================================================
+#  音频 (USB 声卡) — Phase 9
+# ============================================================
+AUDIO_CARD = 3                        # USB 声卡卡号 (aplay -l 查看)
+AUDIO_VOLUME_NUMID = 4                # amixer numid (PCM Playback Volume)
+AUDIO_VOLUME_MAX = 147                # amixer 最大原始值
+AUDIO_DEFAULT_VOLUME = 80             # 启动默认音量 (%)
+AUDIO_TTS_VOICE = "zh-CN-YunxiNeural" # edge-tts 中文男声
+AUDIO_CLIPS_DIR = "assets/sounds"     # 音效文件目录
+AUDIO_ALERT_INTERVAL = 10.0           # 低电量告警音循环间隔 (秒)
+AUDIO_ALERT_VOLTAGE = 7.2             # 低电量告警阈值 (V),可调
+
+# ============================================================
 #  服务器
 # ============================================================
 HOST = "0.0.0.0"

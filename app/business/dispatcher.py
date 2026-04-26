@@ -5,11 +5,13 @@ business/dispatcher.py — 指令分发器
 新增功能只需在 _HANDLERS 注册新 type,核心不变。
 """
 
+import asyncio
 import logging
 import time
 from typing import Any
 
 from app.subsystems.motion import MotionSubsystem
+from app.subsystems.audio import AudioSubsystem
 from app.business.mode_manager import ModeManager, Mode
 
 logger = logging.getLogger(__name__)
@@ -27,9 +29,11 @@ class Dispatcher:
     3. handler 调用对应子系统
     """
 
-    def __init__(self, motion: MotionSubsystem, mode_manager: ModeManager):
+    def __init__(self, motion: MotionSubsystem, mode_manager: ModeManager,
+                 audio: AudioSubsystem | None = None):
         self._motion = motion
         self._mode = mode_manager
+        self._audio = audio
         self._brake_until = 0.0
 
         # type → handler 映射表
@@ -38,13 +42,14 @@ class Dispatcher:
             "cmd.motion": self._handle_motion,
             "cmd.brake": self._handle_brake,
             "cmd.mode": self._handle_mode,
+            "cmd.ping": self._handle_ping,
+            "cmd.audio": self._handle_audio,
             # "cmd.gimbal": self._handle_gimbal,   # Phase 6
             # "cmd.light": self._handle_light,     # Phase 8
-            # "cmd.audio": self._handle_audio,     # Phase 9
             # "cmd.nitro": self._handle_nitro,     # Phase 10
         }
 
-    def dispatch(self, message: dict) -> dict | None:
+    async def dispatch(self, message: dict) -> dict | None:
         """
         分发一条 WS 消息。
 
@@ -62,9 +67,16 @@ class Dispatcher:
 
         try:
             result = handler(payload)
+            # 支持 async handler (如 cmd.audio)
+            if asyncio.iscoroutine(result):
+                result = await result
         except Exception as e:
             logger.error(f"处理 {msg_type} 失败: {e}")
             return None
+
+        # cmd.ping 总是回复 (不需要 id)
+        if msg_type == "cmd.ping" and result:
+            return result
 
         # 带 id 的指令需要 ack
         if msg_id and result:
@@ -100,3 +112,18 @@ class Dispatcher:
         target = payload.get("mode", "manual")
         new_mode = self._mode.switch(target)
         return {"mode": new_mode.value}
+
+    def _handle_ping(self, payload: dict) -> dict:
+        """处理 cmd.ping: 立即回复 event.pong 用于延迟测量"""
+        return {
+            "type": "event.pong",
+            "ts": time.time(),
+            "payload": {},
+        }
+
+    async def _handle_audio(self, payload: dict) -> dict | None:
+        """处理 cmd.audio: { action, data }"""
+        if not self._audio:
+            logger.warning("音频子系统未初始化")
+            return {"error": "audio not available"}
+        return await self._audio.handle_command(payload)
