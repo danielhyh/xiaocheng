@@ -60,9 +60,10 @@ class RealAudioDriver:
         if filepath.endswith(".wav"):
             cmd = ["aplay", "-D", self._device, filepath]
         else:
+            # ffplay 播放 mp3 等格式 (-nodisp 无窗口, -autoexit 播完退出)
             cmd = [
-                "mpv", "--no-video", "--really-quiet",
-                f"--audio-device=alsa/{self._device}", filepath,
+                "ffplay", "-nodisp", "-autoexit", "-loglevel", "error",
+                filepath,
             ]
 
         logger.info(f"播放: {filepath}")
