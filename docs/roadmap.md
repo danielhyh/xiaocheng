@@ -49,14 +49,14 @@ HC-SR04 × 2 已到货，扫描舵机待采购到货。本阶段采用前后双�
 
 ## 外设与体验阶段
 
-**Phase 7 —— 遥测仪表盘增强** ✅  
+**Phase 7 —— 遥测仪表盘增强** 📋  
 ADS1115 电池电压与 CPU 温度已在 Phase 2.pre 接入。本阶段补齐剩余遥测项：Wi-Fi RSSI、WebSocket 往返延迟、CPU 占用率。前端仪表盘 UI 增强（历史曲线、告警动画）。
 
 **Phase 8 —— 车灯系统** 📋  
 IRF520 驱动 3W 前大灯（PWM 调光），WS2812B RGB 灯带分段管理（尾灯/警灯/氛围灯），与运动状态联动（刹车尾灯加亮、自主模式警灯闪烁、倒车灯）。板载 LED 可通过 sysfs 复用为系统状态指示（heartbeat / solid / fast-blink）。
 
-**Phase 9 —— 音频系统** 📋  
-USB 免驱声卡启用（ALSA 配置）、TTS 语音反馈、音效触发框架（倒车提示、警示音）。喇叭贴在声卡旁边，无需 GPIO。
+**Phase 9 —— 音频系统** ✅  
+USB 免驱声卡（Jieli UACDemoV1.0，card3，48000Hz/S16LE）、aplay 播放 wav、ffplay 播放 mp3、edge-tts 中文语音合成（zh-CN-YunxiNeural）、amixer 音量控制。音效套装（horn/startup/low_battery/reverse/warning/nitro/connect/disconnect）由 Python 程序合成。功能：按住鸣笛循环、开机音效、倒车提示音联动（vy<-0.1 自动触发）、低电量告警循环、前端音量滑块 + TTS 输入框。
 
 **Phase 10 —— 氮气加速彩蛋** 📋  
 整合 Phase 8 灯效 + Phase 9 音效 + 电机突破常规上限 + 大灯闪烁，冷却机制（CD 计时），前端按钮 + 动画反馈。
@@ -99,12 +99,16 @@ RPLIDAR 接入、2D 占用栅格地图构建、地图前端可视化、路径点
 
 > ⚠️ **当前阶段信息统一在本文件维护，其他文档（AGENTS.md / CLAUDE.md / README.md）不再重复。**
 
-**Phase 2.pre 已完成（电源验收 + ADS1115 电压监控）** ✅
+**Phase 9 已完成（音频系统）** ✅
 
-1. ☑ LM2596S 降压模块接线并调至 5.0V
-2. ☑ ADS1115 接 I2C1_M4（物理脚 3/5），20KΩ+10KΩ 分压（÷3），I2C 通信正常
-3. ☑ ADS1115 驱动（Real/Mock）与 sensing 子系统落地，接入真实电压遥测
-4. ☑ 全链路端对端测试（手机→Vue→WS→FastAPI→GPIO→电机 + 真实电压显示）
-5. ☑ 万用表校准分压比
+1. ☑ USB 声卡识别（Jieli UACDemoV1.0，card3，48000Hz/S16LE/2ch）
+2. ☑ aplay 播放 wav + ffplay 播放 mp3（AUDIODEV=hw:3,0）
+3. ☑ edge-tts 中文语音合成（zh-CN-YunxiNeural）
+4. ☑ amixer 音量控制（numid=4，0-147）
+5. ☑ 音效套装程序合成（horn/startup/low_battery/reverse/warning/nitro/connect/disconnect）
+6. ☑ 按住鸣笛循环（horn_start/horn_stop）
+7. ☑ 开机音效自动播放
+8. ☑ 倒车提示音联动（vy < -0.1 自动触发）
+9. ☑ 前端 AudioPanel：音量滑块 + TTS 输入框
 
 **下一阶段：Phase 3 — FPV 摄像头（OV5640 + OpenCV + MJPEG 流）**

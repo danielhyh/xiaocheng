@@ -36,6 +36,9 @@
 | `app/drivers/adc/` | ADS1115 I2C ADC 电池电压读取，含 Real/Mock | ✅ P2.pre 完成 |
 | `app/subsystems/sensing.py` | 传感器汇总（真实电压/电量/CPU温度） | ✅ P2.pre 完成 |
 | `frontend/` | Vue 控制面板：虚拟摇杆、WASD、刹车、电量/状态 HUD | ✅ P2.2 完成 |
+| `app/drivers/audio/` | USB 声卡驱动（aplay/ffplay/edge-tts/amixer），含 Real/Mock | ✅ P9 完成 |
+| `app/subsystems/audio.py` | 音效播放、TTS、鸣笛循环、倒车提示、低压告警 | ✅ P9 完成 |
+| `frontend/src/components/AudioPanel.vue` | 音量滑块 + TTS 输入框 | ✅ P9 完成 |
 
 ---
 
