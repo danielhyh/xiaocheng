@@ -12,6 +12,7 @@ export const useCarStore = defineStore('car', () => {
   // 连接状态
   const connected = ref(false)
   const mode = ref('manual')
+  const wsLatency = ref(0)  // WebSocket 往返延迟 (ms)
 
   // 运动遥测 (tel.motion)
   const motion = reactive({
@@ -42,6 +43,7 @@ export const useCarStore = defineStore('car', () => {
   return {
     connected,
     mode,
+    wsLatency,
     motion,
     sensors,
     updateMotion,

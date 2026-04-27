@@ -15,7 +15,7 @@ class AudioDriverProtocol(Protocol):
         """初始化音频设备 (检测声卡等)"""
         ...
 
-    async def play(self, filepath: str) -> None:
+    async def play(self, filepath: str, channel: str = "main") -> None:
         """
         播放音频文件。
 
@@ -24,7 +24,11 @@ class AudioDriverProtocol(Protocol):
         """
         ...
 
-    async def tts(self, text: str, voice: str = "") -> None:
+    async def play_loop(self, filepath: str, channel: str = "main") -> None:
+        """循环播放音频文件,直到对应通道被停止或任务被取消。"""
+        ...
+
+    async def tts(self, text: str, voice: str = "", channel: str = "main") -> None:
         """
         文字转语音并播放。
 
@@ -49,6 +53,10 @@ class AudioDriverProtocol(Protocol):
 
     def stop(self) -> None:
         """停止当前播放"""
+        ...
+
+    def stop_channel(self, channel: str) -> None:
+        """停止指定播放通道"""
         ...
 
     def cleanup(self) -> None:

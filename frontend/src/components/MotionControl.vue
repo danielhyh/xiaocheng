@@ -237,18 +237,18 @@ onUnmounted(() => {
 .joy-wrap { position: relative; }
 .joy-base {
   width: 150px; height: 150px; border-radius: 50%;
-  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.06); border: 1.5px solid rgba(255,255,255,0.15);
   position: relative; touch-action: none;
 }
 .joy-ring {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
   width: 108px; height: 108px; border-radius: 50%;
-  border: 1px dashed rgba(255,255,255,0.06);
+  border: 1px dashed rgba(255,255,255,0.12);
 }
 .joy-thumb {
   position: absolute; top: 50%; left: 50%;
   width: 52px; height: 52px; border-radius: 50%;
-  background: rgba(232,132,44,0.15); border: 2px solid #e8842c;
+  background: rgba(232,132,44,0.25); border: 2px solid #e8842c;
   transform: translate(-50%,-50%); cursor: grab;
   transition: box-shadow 0.15s;
 }
@@ -261,7 +261,7 @@ onUnmounted(() => {
   font-size: 11px; color: #555860; letter-spacing: 1px;
 }
 .hint {
-  position: absolute; font-size: 11px; color: #555860; font-weight: 500;
+  position: absolute; font-size: 11px; color: #8a8d95; font-weight: 600;
   pointer-events: none;
 }
 .hint.u { top: 4px; left: 50%; transform: translateX(-50%); }
@@ -277,6 +277,9 @@ onUnmounted(() => {
   display: flex; flex-direction: column; gap: 4px;
   font-family: 'JetBrains Mono', monospace; font-size: 12px;
   margin-bottom: 30px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 6px;
+  padding: 6px 8px;
 }
 .hud-row { display: flex; align-items: center; gap: 6px; }
 .hud-lbl { color: #555860; width: 32px; text-align: right; }

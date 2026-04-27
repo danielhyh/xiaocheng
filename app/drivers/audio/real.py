@@ -29,7 +29,8 @@ class RealAudioDriver:
         self._device = f"hw:{self._card},0"
         self._numid = config.AUDIO_VOLUME_NUMID
         self._vol_max = config.AUDIO_VOLUME_MAX
-        self._current_process: asyncio.subprocess.Process | None = None
+        self._processes: dict[str, asyncio.subprocess.Process] = {}
+        self._stopping_processes: set[int] = set()
         self._tts_voice = config.AUDIO_TTS_VOICE
 
     def init(self) -> None:
@@ -48,14 +49,28 @@ class RealAudioDriver:
         # 设置初始音量
         self.set_volume(config.AUDIO_DEFAULT_VOLUME)
 
-    async def play(self, filepath: str) -> None:
+    def _play_command(self, filepath: str, loop: bool = False) -> list[str]:
+        if loop:
+            return [
+                "ffplay", "-nodisp", "-loglevel", "error",
+                "-stream_loop", "-1",
+                filepath,
+            ]
+        if filepath.endswith(".wav"):
+            return ["aplay", "-D", self._device, filepath]
+        return [
+            "ffplay", "-nodisp", "-autoexit", "-loglevel", "error",
+            filepath,
+        ]
+
+    async def play(self, filepath: str, channel: str = "main") -> None:
         """播放音频文件 (wav 用 aplay, 其他用 mpv)"""
         if not os.path.isfile(filepath):
             logger.warning(f"音频文件不存在: {filepath}")
             return
 
         # 停止当前播放
-        self.stop()
+        self.stop_channel(channel)
 
         if filepath.endswith(".wav"):
             cmd = ["aplay", "-D", self._device, filepath]
@@ -67,26 +82,72 @@ class RealAudioDriver:
             ]
 
         logger.info(f"播放: {filepath}")
+        proc: asyncio.subprocess.Process | None = None
         try:
             # ffplay 需要 AUDIODEV 环境变量指定 ALSA 设备
             env = dict(os.environ)
             env["AUDIODEV"] = self._device
-            self._current_process = await asyncio.create_subprocess_exec(
+            proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
                 env=env,
             )
-            _, stderr = await self._current_process.communicate()
-            if self._current_process.returncode != 0:
+            self._processes[channel] = proc
+            _, stderr = await proc.communicate()
+            expected_stop = id(proc) in self._stopping_processes
+            if proc.returncode != 0 and not expected_stop:
                 err = stderr.decode().strip() if stderr else "unknown"
-                logger.warning(f"播放失败 (rc={self._current_process.returncode}): {err}")
+                logger.warning(f"播放失败[{channel}] (rc={proc.returncode}): {err}")
         except FileNotFoundError as e:
             logger.error(f"播放命令不存在: {e}")
+        except asyncio.CancelledError:
+            self.stop_channel(channel)
+            raise
         finally:
-            self._current_process = None
+            if proc is not None:
+                self._stopping_processes.discard(id(proc))
+                if self._processes.get(channel) is proc:
+                    del self._processes[channel]
 
-    async def tts(self, text: str, voice: str = "") -> None:
+    async def play_loop(self, filepath: str, channel: str = "main") -> None:
+        """循环播放音频文件,直到对应通道被停止或任务被取消。"""
+        if not os.path.isfile(filepath):
+            logger.warning(f"音频文件不存在: {filepath}")
+            return
+
+        self.stop_channel(channel)
+        cmd = self._play_command(filepath, loop=True)
+
+        logger.info(f"循环播放[{channel}]: {filepath}")
+        proc: asyncio.subprocess.Process | None = None
+        try:
+            env = dict(os.environ)
+            env["AUDIODEV"] = self._device
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+            )
+            self._processes[channel] = proc
+            _, stderr = await proc.communicate()
+            expected_stop = id(proc) in self._stopping_processes
+            if proc.returncode != 0 and not expected_stop:
+                err = stderr.decode().strip() if stderr else "unknown"
+                logger.warning(f"循环播放失败[{channel}] (rc={proc.returncode}): {err}")
+        except FileNotFoundError as e:
+            logger.error(f"播放命令不存在: {e}")
+        except asyncio.CancelledError:
+            self.stop_channel(channel)
+            raise
+        finally:
+            if proc is not None:
+                self._stopping_processes.discard(id(proc))
+                if self._processes.get(channel) is proc:
+                    del self._processes[channel]
+
+    async def tts(self, text: str, voice: str = "", channel: str = "main") -> None:
         """edge-tts 合成语音并播放"""
         if not text.strip():
             return
@@ -120,7 +181,7 @@ class RealAudioDriver:
                 return
 
             # 播放合成的 mp3
-            await self.play(tmp_path)
+            await self.play(tmp_path, channel=channel)
         except FileNotFoundError:
             logger.error("edge-tts 未安装,请运行: pip install edge-tts")
         finally:
@@ -160,13 +221,20 @@ class RealAudioDriver:
         return 0
 
     def stop(self) -> None:
-        """停止当前播放"""
-        if self._current_process and self._current_process.returncode is None:
+        """停止所有播放通道"""
+        for channel in list(self._processes):
+            self.stop_channel(channel)
+
+    def stop_channel(self, channel: str) -> None:
+        """停止指定播放通道"""
+        proc = self._processes.get(channel)
+        if proc and proc.returncode is None:
             try:
-                self._current_process.terminate()
+                self._stopping_processes.add(id(proc))
+                proc.terminate()
             except ProcessLookupError:
                 pass
-            self._current_process = None
+        self._processes.pop(channel, None)
 
     def cleanup(self) -> None:
         self.stop()

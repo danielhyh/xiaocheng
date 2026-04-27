@@ -1,22 +1,23 @@
 import { defineConfig } from 'vite'
 // @ts-ignore
 import vue from '@vitejs/plugin-vue'
+import { BACKEND_TARGET, DEV_SERVER_HOST, DEV_SERVER_PORT } from './dev.config'
 
 export default defineConfig({
   plugins: [vue()],
   server: {
-    host: '0.0.0.0',
-    port: 5173,
+    host: DEV_SERVER_HOST,
+    port: DEV_SERVER_PORT,
     proxy: {
       '/ws': {
-        target: 'http://192.168.0.110:8000',
+        target: BACKEND_TARGET,
         ws: true,
       },
       '/api': {
-        target: 'http://192.168.0.110:8000',
+        target: BACKEND_TARGET,
       },
       '/stream': {
-        target: 'http://192.168.0.110:8000',
+        target: BACKEND_TARGET,
       },
     },
   },

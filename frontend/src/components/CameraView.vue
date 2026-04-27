@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useCarStore } from '../stores/carStore'
+
+const store = useCarStore()
 
 // MJPEG 流地址: 与后端同源
 const streamUrl = computed(() => {
@@ -19,7 +22,6 @@ function onLoad() {
 function onError() {
   isLoading.value = false
   hasError.value = true
-  // 自动重试
   scheduleRetry()
 }
 
@@ -29,17 +31,46 @@ function scheduleRetry() {
     retryTimer = null
     hasError.value = false
     isLoading.value = true
-    // 通过改变 key 强制重新加载 img
     imgKey.value++
   }, 3000)
 }
 
 const imgKey = ref(0)
 
+// ---- 帧率 + 延迟 HUD ----
+const streamFps = ref(0)
+const streamRes = ref('')
+const wsLatency = ref(0)
+let statusTimer: number | null = null
+
+async function fetchStreamStatus() {
+  try {
+    const base = `${location.protocol}//${location.hostname}:${location.port || 8000}`
+    const res = await fetch(`${base}/stream/status`)
+    if (res.ok) {
+      const data = await res.json()
+      streamFps.value = data.fps || 0
+      if (data.resolution && data.resolution.length === 2) {
+        streamRes.value = `${data.resolution[0]}×${data.resolution[1]}`
+      }
+    }
+  } catch { /* ignore */ }
+}
+
+onMounted(() => {
+  // 每 2 秒拉一次流状态
+  statusTimer = window.setInterval(fetchStreamStatus, 2000)
+  fetchStreamStatus()
+})
+
 onUnmounted(() => {
   if (retryTimer) {
     clearTimeout(retryTimer)
     retryTimer = null
+  }
+  if (statusTimer) {
+    clearInterval(statusTimer)
+    statusTimer = null
   }
 })
 </script>
@@ -70,6 +101,24 @@ onUnmounted(() => {
       </div>
       <span class="label">Camera offline</span>
       <span class="phase">重连中...</span>
+    </div>
+
+    <!-- 帧率 / 分辨率 / 延迟 HUD (左上角) -->
+    <div class="stream-hud" v-if="!hasError && !isLoading">
+      <span class="hud-item" v-if="streamRes">
+        <span class="hud-icon">⬚</span>
+        <span class="hud-num">{{ streamRes }}</span>
+      </span>
+      <span class="hud-item">
+        <span class="hud-icon">◉</span>
+        <span class="hud-num">{{ streamFps.toFixed(0) }}</span>
+        <span class="hud-unit">FPS</span>
+      </span>
+      <span class="hud-item" v-if="store.wsLatency > 0">
+        <span class="hud-icon">⏱</span>
+        <span class="hud-num">{{ store.wsLatency }}</span>
+        <span class="hud-unit">ms</span>
+      </span>
     </div>
 
     <!-- HUD 叠加层: 十字准星 + 角落框 -->
@@ -114,6 +163,36 @@ onUnmounted(() => {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ---- 帧率/延迟 HUD ---- */
+.stream-hud {
+  position: absolute;
+  top: 8px; left: 8px;
+  display: flex; gap: 10px;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 6px;
+  padding: 3px 8px;
+  pointer-events: none;
+  z-index: 5;
+}
+.hud-item {
+  display: flex; align-items: center; gap: 3px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.hud-icon {
+  font-size: 8px;
+  color: #2dd284;
+}
+.hud-num {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e8e6e1;
+}
+.hud-unit {
+  font-size: 9px;
+  color: #8a8d95;
+}
+
+/* ---- 准星 + 角落框 ---- */
 .crosshair {
   position: absolute; top: 50%; left: 50%;
   transform: translate(-50%, -50%);

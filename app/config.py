@@ -67,11 +67,12 @@ BATTERY_CRITICAL = 6.2            # 极低压,应停车 (V)
 #  摄像头 (OV5640) — Phase 3
 # ============================================================
 CAMERA_DEVICE = int(os.getenv("XIAOCHENG_CAMERA", "0"))  # /dev/video0
-CAMERA_WIDTH = 640
-CAMERA_HEIGHT = 480
-CAMERA_FPS = 30                   # 采集帧率
-CAMERA_JPEG_QUALITY = 70          # JPEG 压缩质量 (0-100, 越高越清晰但带宽越大)
-CAMERA_STREAM_FPS = 20            # MJPEG 流输出帧率 (可低于采集帧率,省带宽)
+CAMERA_WIDTH = 2592
+CAMERA_HEIGHT = 1944
+CAMERA_FPS = 15                   # 采集帧率 (OV5640 5MP MJPG 标称 15fps)
+CAMERA_JPEG_QUALITY = 80          # JPEG 压缩质量 (0-100, 越高越清晰但带宽越大)
+CAMERA_STREAM_FPS = 15            # MJPEG 流输出帧率 (匹配采集帧率)
+CAMERA_USE_MJPG = True            # 使用 MJPG 采集格式 (摄像头硬件压缩,大幅降低 CPU 和带宽)
 
 # ============================================================
 #  音频 (USB 声卡) — Phase 9

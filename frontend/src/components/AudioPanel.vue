@@ -8,29 +8,43 @@
  *   - 关闭按钮
  */
 
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 
 const emit = defineEmits<{
   close: []
   volume: [level: number]
-  tts: [text: string]
+  voice: [voice: string]
+  tts: [payload: { text: string; voice: string }]
 }>()
 
 const props = defineProps<{
   currentVolume: number
+  currentVoice: string
 }>()
 
+const ttsVoices = [
+  { label: '云希 男声', value: 'zh-CN-YunxiNeural' },
+  { label: '晓晓 女声', value: 'zh-CN-XiaoxiaoNeural' },
+  { label: '云健 男声', value: 'zh-CN-YunjianNeural' },
+  { label: '晓伊 女声', value: 'zh-CN-XiaoyiNeural' },
+]
+
 const volume = ref(props.currentVolume)
+const voice = ref(props.currentVoice)
 const ttsText = ref('')
 
 function onVolumeChange() {
   emit('volume', volume.value)
 }
 
+function onVoiceChange() {
+  emit('voice', voice.value)
+}
+
 function onTtsSend() {
   const text = ttsText.value.trim()
   if (!text) return
-  emit('tts', text)
+  emit('tts', { text, voice: voice.value })
   ttsText.value = ''
 }
 </script>
@@ -59,6 +73,11 @@ function onTtsSend() {
     <!-- TTS -->
     <div class="panel-section">
       <label class="section-label">TTS 语音</label>
+      <select v-model="voice" class="voice-select" @change="onVoiceChange">
+        <option v-for="item in ttsVoices" :key="item.value" :value="item.value">
+          {{ item.label }}
+        </option>
+      </select>
       <div class="tts-row">
         <input
           type="text"
@@ -163,6 +182,26 @@ function onTtsSend() {
 }
 
 /* TTS */
+.voice-select {
+  width: 100%;
+  height: 30px;
+  margin-bottom: 8px;
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: #e8e6e1;
+  font-size: 12px;
+  outline: none;
+}
+.voice-select:focus {
+  border-color: rgba(232, 132, 44, 0.5);
+}
+.voice-select option {
+  background: #14161e;
+  color: #e8e6e1;
+}
+
 .tts-row {
   display: flex;
   gap: 6px;

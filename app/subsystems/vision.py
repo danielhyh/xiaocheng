@@ -60,7 +60,12 @@ class VisionSubsystem:
         )
 
     def _capture_loop(self) -> None:
-        """采集线程主循环"""
+        """
+        采集线程主循环。
+
+        读 BGR 帧 → CPU 编码 JPEG → 存入 _latest_frame。
+        MJPG 采集格式由驱动层设置,减少 USB 带宽占用和采集延迟。
+        """
         target_interval = 1.0 / config.CAMERA_FPS
         fps_counter = 0
         fps_timer = time.monotonic()

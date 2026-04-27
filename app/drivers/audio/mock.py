@@ -26,13 +26,18 @@ class MockAudioDriver:
         self._initialized = True
         logger.info("[MOCK] AudioDriver 初始化完成")
 
-    async def play(self, filepath: str) -> None:
-        logger.info(f"[MOCK] 播放音频: {filepath}")
+    async def play(self, filepath: str, channel: str = "main") -> None:
+        logger.info(f"[MOCK] 播放音频[{channel}]: {filepath}")
         # 模拟播放耗时
         await asyncio.sleep(0.1)
 
-    async def tts(self, text: str, voice: str = "") -> None:
-        logger.info(f"[MOCK] TTS: '{text}' (voice={voice or 'default'})")
+    async def play_loop(self, filepath: str, channel: str = "main") -> None:
+        logger.info(f"[MOCK] 循环播放音频[{channel}]: {filepath}")
+        while True:
+            await asyncio.sleep(3600)
+
+    async def tts(self, text: str, voice: str = "", channel: str = "main") -> None:
+        logger.info(f"[MOCK] TTS[{channel}]: '{text}' (voice={voice or 'default'})")
         await asyncio.sleep(0.2)
 
     def set_volume(self, level: int) -> None:
@@ -43,7 +48,10 @@ class MockAudioDriver:
         return self._volume
 
     def stop(self) -> None:
-        logger.info("[MOCK] 停止播放")
+        logger.info("[MOCK] 停止所有通道")
+
+    def stop_channel(self, channel: str) -> None:
+        logger.info(f"[MOCK] 停止播放[{channel}]")
 
     def cleanup(self) -> None:
         if self._initialized:

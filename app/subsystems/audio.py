@@ -35,6 +35,8 @@ class AudioSubsystem:
         self._horn_active = False
         self._reverse_task: asyncio.Task | None = None
         self._reverse_active = False
+        self._tts_task: asyncio.Task | None = None
+        self._tts_active = False
 
     def init(self) -> None:
         self._driver.init()
@@ -61,7 +63,7 @@ class AudioSubsystem:
         """播放开机音效 (启动时调用)"""
         clip = self._clips.get("startup")
         if clip:
-            await self._driver.play(clip)
+            await self._driver.play(clip, channel="sfx")
             logger.info("开机音效播放完毕")
 
     async def handle_command(self, payload: dict) -> dict:
@@ -94,7 +96,7 @@ class AudioSubsystem:
         elif action == "get_volume":
             return {"volume": self._driver.get_volume()}
         elif action == "stop":
-            self._driver.stop()
+            self._stop_all_playback()
             return {"stopped": True}
         elif action == "list_clips":
             return {"clips": list(self._clips.keys())}
@@ -112,7 +114,9 @@ class AudioSubsystem:
             return {"error": f"clip not found: {clip}", "available": available}
 
         # 异步播放,不阻塞指令处理
-        asyncio.create_task(self._driver.play(filepath))
+        if self._horn_active:
+            return {"playing": clip, "skipped": "horn_active"}
+        asyncio.create_task(self._driver.play(filepath, channel="sfx"))
         return {"playing": clip}
 
     async def _action_tts(self, data: dict) -> dict:
@@ -122,8 +126,25 @@ class AudioSubsystem:
         if not text.strip():
             return {"error": "empty text"}
 
-        asyncio.create_task(self._driver.tts(text, voice))
+        if self._horn_active:
+            return {"tts": text, "skipped": "horn_active"}
+
+        if self._tts_task and not self._tts_task.done():
+            self._tts_task.cancel()
+            self._driver.stop_channel("tts")
+        self._tts_task = asyncio.create_task(self._run_tts(text, voice))
         return {"tts": text}
+
+    async def _run_tts(self, text: str, voice: str) -> None:
+        """播放 TTS。TTS 期间暂停倒车提示,播完后倒车循环会自动恢复。"""
+        self._tts_active = True
+        self._driver.stop_channel("reverse")
+        try:
+            await self._driver.tts(text, voice, channel="tts")
+        except asyncio.CancelledError:
+            self._driver.stop_channel("tts")
+        finally:
+            self._tts_active = False
 
     def _action_volume(self, data: dict) -> dict:
         """设置音量"""
@@ -141,6 +162,11 @@ class AudioSubsystem:
         if self._horn_active:
             return {"horn": "already_playing"}
         self._horn_active = True
+        self._driver.stop_channel("reverse")
+        self._driver.stop_channel("alert")
+        if self._tts_task and not self._tts_task.done():
+            self._tts_task.cancel()
+            self._driver.stop_channel("tts")
         self._horn_task = asyncio.create_task(self._horn_loop())
         return {"horn": "started"}
 
@@ -150,7 +176,7 @@ class AudioSubsystem:
         if self._horn_task and not self._horn_task.done():
             self._horn_task.cancel()
             self._horn_task = None
-        self._driver.stop()
+        self._driver.stop_channel("horn")
         return {"horn": "stopped"}
 
     async def _horn_loop(self) -> None:
@@ -159,13 +185,9 @@ class AudioSubsystem:
         if not horn_clip:
             return
         try:
-            while self._horn_active:
-                await self._driver.play(horn_clip)
-                # horn.wav 播完后如果还在按住,短暂间隔后继续
-                if self._horn_active:
-                    await asyncio.sleep(0.05)
+            await self._driver.play_loop(horn_clip, channel="horn")
         except asyncio.CancelledError:
-            pass
+            self._driver.stop_channel("horn")
 
     # ---- 倒车提示音 ----
 
@@ -185,7 +207,7 @@ class AudioSubsystem:
         if self._reverse_task and not self._reverse_task.done():
             self._reverse_task.cancel()
             self._reverse_task = None
-        self._driver.stop()
+        self._driver.stop_channel("reverse")
         logger.debug("倒车提示音停止")
 
     async def _reverse_loop(self) -> None:
@@ -195,11 +217,15 @@ class AudioSubsystem:
             return
         try:
             while self._reverse_active:
-                await self._driver.play(reverse_clip)
+                if self._horn_active or self._tts_active:
+                    self._driver.stop_channel("reverse")
+                    await asyncio.sleep(0.1)
+                    continue
+                await self._driver.play(reverse_clip, channel="reverse")
                 if self._reverse_active:
                     await asyncio.sleep(0.1)
         except asyncio.CancelledError:
-            pass
+            self._driver.stop_channel("reverse")
 
     # ---- 低电量告警联动 ----
 
@@ -216,13 +242,17 @@ class AudioSubsystem:
         alert_clip = self._clips.get("low_battery")
         try:
             while self._alert_active:
+                if self._horn_active:
+                    self._driver.stop_channel("alert")
+                    await asyncio.sleep(0.5)
+                    continue
                 if alert_clip:
-                    await self._driver.play(alert_clip)
+                    await self._driver.play(alert_clip, channel="alert")
                 else:
-                    await self._driver.tts("电量不足,请及时充电")
+                    await self._driver.tts("电量不足,请及时充电", channel="alert")
                 await asyncio.sleep(config.AUDIO_ALERT_INTERVAL)
         except asyncio.CancelledError:
-            pass
+            self._driver.stop_channel("alert")
 
     def stop_low_voltage_alert(self) -> None:
         """停止低电量告警音"""
@@ -230,7 +260,7 @@ class AudioSubsystem:
         if self._alert_task and not self._alert_task.done():
             self._alert_task.cancel()
             self._alert_task = None
-        self._driver.stop()
+        self._driver.stop_channel("alert")
         logger.info("低电量告警音已停止")
 
     @property
@@ -238,8 +268,20 @@ class AudioSubsystem:
         """当前音量"""
         return self._driver.get_volume()
 
+    def _stop_all_playback(self) -> None:
+        self._alert_active = False
+        self._horn_active = False
+        self._reverse_active = False
+        self._tts_active = False
+        for task in (self._alert_task, self._horn_task, self._reverse_task, self._tts_task):
+            if task and not task.done():
+                task.cancel()
+        self._alert_task = None
+        self._horn_task = None
+        self._reverse_task = None
+        self._tts_task = None
+        self._driver.stop()
+
     def cleanup(self) -> None:
-        self.stop_low_voltage_alert()
-        self._action_horn_stop()
-        self.stop_reverse_beep()
+        self._stop_all_playback()
         self._driver.cleanup()
