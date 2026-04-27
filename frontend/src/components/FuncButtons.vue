@@ -7,11 +7,12 @@
  * 其余按钮标注对应 Phase,后续激活。
  */
 
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 
 const emit = defineEmits<{
   brake: []
-  horn: []
+  hornStart: []
+  hornStop: []
   toggleAudioPanel: []
 }>()
 
@@ -20,13 +21,40 @@ const buttons = [
   { icon: 'light',   label: 'P8',  phase: 8, disabled: true  },
   { icon: 'nitro',   label: 'P10', phase: 10, disabled: true },
 ]
+
+const BRAKE_REPEAT_MS = 100
+const brakeTimer = ref<number | null>(null)
+
+function startBrakeHold(e?: PointerEvent) {
+  e?.currentTarget instanceof HTMLElement && e.currentTarget.setPointerCapture(e.pointerId)
+  if (brakeTimer.value !== null) return
+
+  emit('brake')
+  brakeTimer.value = window.setInterval(() => emit('brake'), BRAKE_REPEAT_MS)
+}
+
+function stopBrakeHold() {
+  if (brakeTimer.value === null) return
+
+  window.clearInterval(brakeTimer.value)
+  brakeTimer.value = null
+}
+
+onBeforeUnmount(stopBrakeHold)
 </script>
 
 <template>
   <div class="func-col">
     <!-- 刹车 -->
     <div class="func-item">
-      <button class="fbtn brake" title="刹车" @click="emit('brake')">
+      <button
+        class="fbtn brake"
+        title="刹车"
+        @pointerdown.prevent="startBrakeHold"
+        @pointerup.prevent="stopBrakeHold"
+        @pointercancel.prevent="stopBrakeHold"
+        @pointerleave="stopBrakeHold"
+      >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="12" cy="12" r="8"/>
           <path d="M12 7v6"/>
@@ -36,9 +64,15 @@ const buttons = [
       <span class="fbtn-lbl brake-lbl">BRAKE</span>
     </div>
 
-    <!-- 鸣笛 -->
+    <!-- 鸣笛 (按住循环) -->
     <div class="func-item">
-      <button class="fbtn horn" title="鸣笛" @click="emit('horn')">
+      <button
+        class="fbtn horn"
+        title="鸣笛 (按住)"
+        @pointerdown.prevent="emit('hornStart')"
+        @pointerup.prevent="emit('hornStop')"
+        @pointerleave="emit('hornStop')"
+      >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>
         </svg>

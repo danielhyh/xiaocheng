@@ -91,7 +91,6 @@ class Dispatcher:
     def _handle_motion(self, payload: dict) -> None:
         """处理 cmd.motion: { vx, vy }"""
         if self._mode.current != Mode.MANUAL:
-            # 自动模式下收到手动指令 → 临时让出 (TODO: 实现 3 秒超时)
             pass
 
         vx = float(payload.get("vx", 0))
@@ -100,6 +99,13 @@ class Dispatcher:
             logger.debug("忽略刹车保护窗口内的运动指令")
             return
         self._motion.handle_command(vx, vy)
+
+        # 倒车提示音联动
+        if self._audio:
+            if vy < -0.1:
+                self._audio.start_reverse_beep()
+            else:
+                self._audio.stop_reverse_beep()
 
     def _handle_brake(self, payload: dict) -> dict:
         """处理 cmd.brake: 立即制动并清零运动状态。"""

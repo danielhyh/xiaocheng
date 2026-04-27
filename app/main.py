@@ -76,6 +76,9 @@ async def lifespan(app: FastAPI):
     # 启动后台任务
     safety_task = asyncio.create_task(safety.run())
 
+    # 播放开机音效
+    asyncio.create_task(audio.play_startup())
+
     logger.info("小橙 就绪")
     yield
 

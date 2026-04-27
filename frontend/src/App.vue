@@ -14,8 +14,39 @@ const motionControl = ref<any>(null)
 const isFullscreen = ref(false)
 const showAudioPanel = ref(false)
 const audioVolume = ref(80)
+const ttsVoice = ref('zh-CN-YunxiNeural')
+const AUDIO_VOLUME_STORAGE_KEY = 'xiaocheng.audioVolume'
+const TTS_VOICE_STORAGE_KEY = 'xiaocheng.ttsVoice'
+const DEFAULT_TTS_VOICE = 'zh-CN-YunxiNeural'
+
+function clampVolume(level: number) {
+  return Math.max(0, Math.min(100, Math.round(level)))
+}
+
+function loadStoredVolume() {
+  const raw = localStorage.getItem(AUDIO_VOLUME_STORAGE_KEY)
+  if (raw === null) return 80
+
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) ? clampVolume(parsed) : 80
+}
+
+function saveStoredVolume(level: number) {
+  localStorage.setItem(AUDIO_VOLUME_STORAGE_KEY, String(clampVolume(level)))
+}
+
+function loadStoredVoice() {
+  return localStorage.getItem(TTS_VOICE_STORAGE_KEY) || DEFAULT_TTS_VOICE
+}
+
+function saveStoredVoice(voice: string) {
+  localStorage.setItem(TTS_VOICE_STORAGE_KEY, voice)
+}
 
 onMounted(() => {
+  audioVolume.value = loadStoredVolume()
+  ttsVoice.value = loadStoredVoice()
+
   // 订阅遥测
   ws.on('tel.motion', (payload) => store.updateMotion(payload))
   ws.on('tel.sensors', (payload) => store.updateSensors(payload))
@@ -42,7 +73,18 @@ onMounted(() => {
   document.addEventListener('fullscreenchange', onFullscreenChange)
 
   // 同步连接状态
-  const check = () => { store.connected = ws.connected.value }
+  let volumeSynced = false
+  const check = () => {
+    store.connected = ws.connected.value
+    if (!ws.connected.value) {
+      volumeSynced = false
+      return
+    }
+    if (!volumeSynced) {
+      volumeSynced = true
+      ws.send('cmd.audio', { action: 'volume', data: { level: audioVolume.value } })
+    }
+  }
   setInterval(check, 200)
 
   // 连接
@@ -62,13 +104,28 @@ function sendHorn() {
   ws.send('cmd.audio', { action: 'play', data: { clip: 'horn' } })
 }
 
-function sendVolume(level: number) {
-  audioVolume.value = level
-  ws.send('cmd.audio', { action: 'volume', data: { level } })
+function sendHornStart() {
+  ws.send('cmd.audio', { action: 'horn_start' })
 }
 
-function sendTts(text: string) {
-  ws.send('cmd.audio', { action: 'tts', data: { text } })
+function sendHornStop() {
+  ws.send('cmd.audio', { action: 'horn_stop' })
+}
+
+function sendVolume(level: number) {
+  const nextLevel = clampVolume(level)
+  audioVolume.value = nextLevel
+  saveStoredVolume(nextLevel)
+  ws.send('cmd.audio', { action: 'volume', data: { level: nextLevel } })
+}
+
+function sendTts(payload: { text: string; voice: string }) {
+  ws.send('cmd.audio', { action: 'tts', data: payload })
+}
+
+function selectTtsVoice(voice: string) {
+  ttsVoice.value = voice
+  saveStoredVoice(voice)
 }
 
 function toggleAudioPanel() {
@@ -103,12 +160,14 @@ function onFullscreenChange() {
     <div class="main-area">
       <CameraView />
       <MotionControl ref="motionControl" @move="sendMotion" />
-      <FuncButtons @brake="sendBrake" @horn="sendHorn" @toggle-audio-panel="toggleAudioPanel" />
+      <FuncButtons @brake="sendBrake" @horn-start="sendHornStart" @horn-stop="sendHornStop" @toggle-audio-panel="toggleAudioPanel" />
       <AudioPanel
         v-if="showAudioPanel"
         :current-volume="audioVolume"
+        :current-voice="ttsVoice"
         @close="showAudioPanel = false"
         @volume="sendVolume"
+        @voice="selectTtsVoice"
         @tts="sendTts"
       />
     </div>

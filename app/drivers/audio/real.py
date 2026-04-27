@@ -68,10 +68,14 @@ class RealAudioDriver:
 
         logger.info(f"播放: {filepath}")
         try:
+            # ffplay 需要 AUDIODEV 环境变量指定 ALSA 设备
+            env = dict(os.environ)
+            env["AUDIODEV"] = self._device
             self._current_process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
+                env=env,
             )
             _, stderr = await self._current_process.communicate()
             if self._current_process.returncode != 0:

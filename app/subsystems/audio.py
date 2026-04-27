@@ -3,9 +3,12 @@ subsystems/audio.py — 音频子系统
 
 职责:
   - 预录音效播放 (play)
+  - 鸣笛循环 (horn_start / horn_stop): 按住持续鸣笛
   - TTS 文字转语音 (tts)
   - 音量控制 (volume)
   - 低电量告警音联动 (alert)
+  - 启动音效 (startup)
+  - 倒车提示音 (reverse)
 
 不感知 ALSA / amixer 细节,只依赖 AudioDriver 接口。
 """
@@ -21,13 +24,17 @@ logger = logging.getLogger(__name__)
 
 
 class AudioSubsystem:
-    """音频子系统: 音效播放 + TTS + 音量控制 + 低压告警"""
+    """音频子系统: 音效播放 + TTS + 音量控制 + 低压告警 + 鸣笛循环 + 倒车提示"""
 
     def __init__(self):
         self._driver = AudioDriver()
         self._clips: dict[str, str] = {}
         self._alert_task: asyncio.Task | None = None
         self._alert_active = False
+        self._horn_task: asyncio.Task | None = None
+        self._horn_active = False
+        self._reverse_task: asyncio.Task | None = None
+        self._reverse_active = False
 
     def init(self) -> None:
         self._driver.init()
@@ -50,14 +57,23 @@ class AudioSubsystem:
                 self._clips[name] = os.path.join(clips_dir, fname)
                 logger.debug(f"  音效: {name} → {fname}")
 
+    async def play_startup(self) -> None:
+        """播放开机音效 (启动时调用)"""
+        clip = self._clips.get("startup")
+        if clip:
+            await self._driver.play(clip)
+            logger.info("开机音效播放完毕")
+
     async def handle_command(self, payload: dict) -> dict:
         """
         处理 cmd.audio 指令。
 
         payload 格式:
-          { "action": "play",   "data": { "clip": "horn" } }
-          { "action": "tts",    "data": { "text": "你好", "voice": "" } }
-          { "action": "volume", "data": { "level": 75 } }
+          { "action": "play",       "data": { "clip": "horn" } }
+          { "action": "horn_start" }
+          { "action": "horn_stop" }
+          { "action": "tts",        "data": { "text": "你好", "voice": "" } }
+          { "action": "volume",     "data": { "level": 75 } }
           { "action": "stop" }
           { "action": "get_volume" }
           { "action": "list_clips" }
@@ -67,6 +83,10 @@ class AudioSubsystem:
 
         if action == "play":
             return await self._action_play(data)
+        elif action == "horn_start":
+            return self._action_horn_start()
+        elif action == "horn_stop":
+            return self._action_horn_stop()
         elif action == "tts":
             return await self._action_tts(data)
         elif action == "volume":
@@ -114,6 +134,73 @@ class AudioSubsystem:
         self._driver.set_volume(level)
         return {"volume": level}
 
+    # ---- 鸣笛循环 (按住不松) ----
+
+    def _action_horn_start(self) -> dict:
+        """开始循环鸣笛"""
+        if self._horn_active:
+            return {"horn": "already_playing"}
+        self._horn_active = True
+        self._horn_task = asyncio.create_task(self._horn_loop())
+        return {"horn": "started"}
+
+    def _action_horn_stop(self) -> dict:
+        """停止鸣笛"""
+        self._horn_active = False
+        if self._horn_task and not self._horn_task.done():
+            self._horn_task.cancel()
+            self._horn_task = None
+        self._driver.stop()
+        return {"horn": "stopped"}
+
+    async def _horn_loop(self) -> None:
+        """循环播放 horn 音效直到松开"""
+        horn_clip = self._clips.get("horn")
+        if not horn_clip:
+            return
+        try:
+            while self._horn_active:
+                await self._driver.play(horn_clip)
+                # horn.wav 播完后如果还在按住,短暂间隔后继续
+                if self._horn_active:
+                    await asyncio.sleep(0.05)
+        except asyncio.CancelledError:
+            pass
+
+    # ---- 倒车提示音 ----
+
+    def start_reverse_beep(self) -> None:
+        """开始倒车提示音 (由 motion 子系统调用)"""
+        if self._reverse_active:
+            return
+        self._reverse_active = True
+        self._reverse_task = asyncio.create_task(self._reverse_loop())
+        logger.debug("倒车提示音启动")
+
+    def stop_reverse_beep(self) -> None:
+        """停止倒车提示音"""
+        if not self._reverse_active:
+            return
+        self._reverse_active = False
+        if self._reverse_task and not self._reverse_task.done():
+            self._reverse_task.cancel()
+            self._reverse_task = None
+        self._driver.stop()
+        logger.debug("倒车提示音停止")
+
+    async def _reverse_loop(self) -> None:
+        """循环播放倒车音效"""
+        reverse_clip = self._clips.get("reverse")
+        if not reverse_clip:
+            return
+        try:
+            while self._reverse_active:
+                await self._driver.play(reverse_clip)
+                if self._reverse_active:
+                    await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            pass
+
     # ---- 低电量告警联动 ----
 
     async def start_low_voltage_alert(self) -> None:
@@ -127,13 +214,15 @@ class AudioSubsystem:
     async def _alert_loop(self) -> None:
         """循环播放告警音效"""
         alert_clip = self._clips.get("low_battery")
-        while self._alert_active:
-            if alert_clip:
-                await self._driver.play(alert_clip)
-            else:
-                # 没有告警音效文件时用 TTS
-                await self._driver.tts("电量不足,请及时充电")
-            await asyncio.sleep(config.AUDIO_ALERT_INTERVAL)
+        try:
+            while self._alert_active:
+                if alert_clip:
+                    await self._driver.play(alert_clip)
+                else:
+                    await self._driver.tts("电量不足,请及时充电")
+                await asyncio.sleep(config.AUDIO_ALERT_INTERVAL)
+        except asyncio.CancelledError:
+            pass
 
     def stop_low_voltage_alert(self) -> None:
         """停止低电量告警音"""
@@ -151,4 +240,6 @@ class AudioSubsystem:
 
     def cleanup(self) -> None:
         self.stop_low_voltage_alert()
+        self._action_horn_stop()
+        self.stop_reverse_beep()
         self._driver.cleanup()
