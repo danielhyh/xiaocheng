@@ -11,3 +11,4 @@ edge-tts>=6.1                  # 微软 Edge TTS (中文语音合成)
 
 # 开发板专用 (PC 上不装也能跑 mock)
 # wiringpi          # pip install wiringpi (需在 Orange Pi 上编译)
+# spidev            # WS2812B 灯带 SPI bitbang 驱动 (Orange Pi 上: pip install spidev)
