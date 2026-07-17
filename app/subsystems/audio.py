@@ -268,6 +268,14 @@ class AudioSubsystem:
         """当前音量"""
         return self._driver.get_volume()
 
+    def stop_horn_and_reverse(self) -> None:
+        """断连安全回调: 停止鸣笛和倒车提示音"""
+        if self._horn_active:
+            self._action_horn_stop()
+            logger.info("断连安全: 鸣笛已停止")
+        if self._reverse_active:
+            self.stop_reverse_beep()
+
     def _stop_all_playback(self) -> None:
         self._alert_active = False
         self._horn_active = False

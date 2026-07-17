@@ -12,7 +12,7 @@ export const useCarStore = defineStore('car', () => {
   // 连接状态
   const connected = ref(false)
   const mode = ref('manual')
-  const wsLatency = ref(0)  // WebSocket 往返延迟 (ms)
+  const wsLatency = ref(0)
 
   // 运动遥测 (tel.motion)
   const motion = reactive({
@@ -22,6 +22,8 @@ export const useCarStore = defineStore('car', () => {
     direction: 'idle',
     left_speed: 0,
     right_speed: 0,
+    nitro_active: false,
+    nitro_boost: 1.0,
   })
 
   // 传感器遥测 (tel.sensors)
@@ -30,6 +32,31 @@ export const useCarStore = defineStore('car', () => {
     battery_percent: 0,
     battery_level: 'ok' as 'ok' | 'low' | 'critical' | 'unknown',
     cpu_temp: null as number | null,
+    // Phase 7 增强
+    wifi_rssi: null as number | null,
+    cpu_usage: null as number | null,
+    // Phase 4 云台
+    gimbal_pan: 90,
+    gimbal_tilt: 90,
+    // Phase 6 避障
+    front_distance: null as number | null,
+    rear_distance: null as number | null,
+    front_blocked: false,
+    rear_blocked: false,
+  })
+
+  // 灯光状态
+  const lighting = reactive({
+    headlight_on: false,
+    headlight_brightness: 80,
+    strip_mode: 'off' as string,
+  })
+
+  // 氮气状态
+  const nitro = reactive({
+    active: false,
+    cooling: false,
+    cooldown_remaining: 0,
   })
 
   function updateMotion(payload: any) {
@@ -40,13 +67,25 @@ export const useCarStore = defineStore('car', () => {
     Object.assign(sensors, payload)
   }
 
+  function updateLighting(payload: any) {
+    Object.assign(lighting, payload)
+  }
+
+  function updateNitro(payload: any) {
+    Object.assign(nitro, payload)
+  }
+
   return {
     connected,
     mode,
     wsLatency,
     motion,
     sensors,
+    lighting,
+    nitro,
     updateMotion,
     updateSensors,
+    updateLighting,
+    updateNitro,
   }
 })

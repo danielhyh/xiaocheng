@@ -1,3 +1,8 @@
+---
+title: 系统架构
+scope: 六层架构、WebSocket 协议、Mock 模式、并发模型
+decisions: [ADR-003, ADR-004, ADR-005, ADR-008]
+---
 # 小橙系统架构文档
 
 > 对应系统设计 v0.1，随 Phase 演进持续精化。  
@@ -190,11 +195,12 @@ xiaocheng/
 ├── CLAUDE.md
 ├── docs/
 │   ├── architecture.md      ← 本文件
-│   ├── hardware-wiring.md
+│   ├── hardware-wiring.md   ← 硬件清单总览 + 接线
 │   ├── decisions.md
 │   ├── known-issues.md
-│   ├── changelog.md
-│   └── archive/
+│   ├── roadmap.md
+│   └── modules/
+├── archive/                 ← 归档历史知识库（已移出 docs/）
 ├── app/
 │   ├── main.py
 │   ├── config.py

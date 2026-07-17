@@ -2,9 +2,12 @@
 drivers/camera/mock.py — Mock 摄像头驱动
 
 接口与 RealCameraDriver 完全一致。
-生成带时间戳和网格的测试图案,PC 上开发前端时用。
+
+优先加载 frontend/public/mock-bg.png 作为背景帧,
+找不到时退回到 OpenCV 生成的测试图案。
 """
 
+import os
 import time
 import logging
 
@@ -15,17 +18,29 @@ from app import config
 
 logger = logging.getLogger(__name__)
 
+# 背景图搜索路径 (从项目根目录出发, 优先 assets/)
+_BG_SEARCH_PATHS = [
+    os.path.join("assets", "mock-bg.png"),
+    os.path.join("assets", "mock-bg.jpg"),
+    os.path.join("frontend", "public", "mock-bg.png"),
+    os.path.join("frontend", "public", "mock-bg.jpg"),
+]
+
+
+def _find_bg_image() -> str | None:
+    """在项目目录中搜索背景图"""
+    for rel in _BG_SEARCH_PATHS:
+        if os.path.isfile(rel):
+            return rel
+    return None
+
 
 class MockCameraDriver:
     """
     Mock 摄像头驱动。
 
-    生成动态测试图案:
-    - 深色背景 + 网格线
-    - 中心十字准星
-    - 实时时间戳
-    - 帧计数器
-    - 模拟 FPV 风格
+    优先使用 mock-bg.png 背景图 (赛博朋克风格),
+    找不到时生成动态测试图案。
     """
 
     def __init__(self):
@@ -33,20 +48,66 @@ class MockCameraDriver:
         self._height = config.CAMERA_HEIGHT
         self._opened = False
         self._frame_count = 0
+        self._bg_frame: np.ndarray | None = None
 
     def init(self) -> None:
         self._opened = True
         self._frame_count = 0
-        logger.info(
-            f"[MOCK] CameraDriver 初始化完成: "
-            f"{self._width}x{self._height}"
-        )
+
+        # 尝试加载背景图
+        bg_path = _find_bg_image()
+        if bg_path:
+            img = cv2.imread(bg_path)
+            if img is not None:
+                # 缩放到目标分辨率
+                self._bg_frame = cv2.resize(img, (self._width, self._height))
+                logger.info(
+                    f"[MOCK] CameraDriver 使用背景图: {bg_path} "
+                    f"({self._width}x{self._height})"
+                )
+            else:
+                logger.warning(f"[MOCK] 背景图加载失败: {bg_path}, 退回测试图案")
+        else:
+            logger.info(
+                f"[MOCK] 未找到背景图, 使用测试图案 "
+                f"({self._width}x{self._height})"
+            )
 
     def read_frame(self) -> np.ndarray | None:
         if not self._opened:
             return None
 
         self._frame_count += 1
+
+        if self._bg_frame is not None:
+            return self._read_bg_frame()
+        else:
+            return self._read_generated_frame()
+
+    def _read_bg_frame(self) -> np.ndarray:
+        """使用背景图 + 叠加 HUD 信息"""
+        frame = self._bg_frame.copy()
+        cx, cy = self._width // 2, self._height // 2
+
+        # 左上角时间戳
+        ts = time.strftime("%H:%M:%S")
+        cv2.putText(
+            frame, ts, (10, 25),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 220, 255), 1,
+            cv2.LINE_AA,
+        )
+
+        # 右上角帧计数
+        cv2.putText(
+            frame, f"F:{self._frame_count}", (self._width - 90, 25),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (180, 180, 200), 1,
+            cv2.LINE_AA,
+        )
+
+        return frame
+
+    def _read_generated_frame(self) -> np.ndarray:
+        """生成测试图案 (无背景图时的 fallback)"""
         frame = np.zeros((self._height, self._width, 3), dtype=np.uint8)
 
         # 深色背景渐变

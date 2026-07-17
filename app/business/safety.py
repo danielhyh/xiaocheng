@@ -1,8 +1,12 @@
 """
 business/safety.py — 安全看门狗
 
-WS 断连后 500ms 内自动停车。
-后续 Phase 加入: 低电压告警、超温保护、急停。
+安全功能:
+  - WS 断连后 500ms 内自动停车
+  - 前方障碍物自动停车
+  - 后方障碍物倒车自动刹停
+  - 低电压告警 (联动音频)
+  - 断连时停止鸣笛/灯效/云台/氮气
 """
 
 import asyncio
@@ -27,9 +31,50 @@ class SafetyWatchdog:
     def __init__(self, motion: MotionSubsystem, mode_manager: ModeManager):
         self._motion = motion
         self._mode = mode_manager
+        self._audio = None
+        self._lighting = None
+        self._gimbal = None
+        self._obstacle = None
+        self._nitro = None
         self._last_heartbeat = time.time()
         self._running = False
         self._has_connection = False
+
+    def set_audio(self, audio) -> None:
+        """注入音频子系统引用"""
+        self._audio = audio
+
+    def set_lighting(self, lighting) -> None:
+        """注入灯光子系统引用"""
+        self._lighting = lighting
+
+    def set_gimbal(self, gimbal) -> None:
+        """注入云台子系统引用"""
+        self._gimbal = gimbal
+
+    def set_obstacle(self, obstacle) -> None:
+        """注入避障子系统引用"""
+        self._obstacle = obstacle
+        # 注册避障回调
+        if obstacle:
+            obstacle.set_callbacks(
+                on_front_blocked=self._on_front_blocked,
+                on_rear_blocked=self._on_rear_blocked,
+            )
+
+    def set_nitro(self, nitro) -> None:
+        """注入氮气子系统引用"""
+        self._nitro = nitro
+
+    def _on_front_blocked(self) -> None:
+        """前方障碍物回调: 停车"""
+        logger.warning("安全: 前方障碍物,自动停车")
+        self._motion.stop()
+
+    def _on_rear_blocked(self) -> None:
+        """后方障碍物回调: 停车"""
+        logger.warning("安全: 后方障碍物,倒车自动刹停")
+        self._motion.brake()
 
     def touch(self) -> None:
         """喂狗: 收到任何 WS 消息时调用"""
@@ -37,12 +82,24 @@ class SafetyWatchdog:
         self._has_connection = True
 
     def on_disconnect(self) -> None:
-        """WS 断连时调用"""
+        """WS 真正断连时调用"""
         self._has_connection = False
-        self._emergency_stop("WebSocket 断连")
+        self._on_heartbeat_timeout("WebSocket 断连")
+        # 停止鸣笛和倒车提示
+        if self._audio:
+            self._audio.stop_horn_and_reverse()
+        # 停止灯效 (大灯保持)
+        if self._lighting:
+            self._lighting.stop_all()
+        # 停止云台移动
+        if self._gimbal:
+            self._gimbal.stop_all()
+        # 停止氮气
+        if self._nitro:
+            self._nitro.stop_all()
 
-    def _emergency_stop(self, reason: str) -> None:
-        """紧急停车"""
+    def _on_heartbeat_timeout(self, reason: str) -> None:
+        """心跳超时: 只停车"""
         logger.warning(f"安全停车: {reason}")
         self._motion.stop()
         self._mode.force_manual(reason)
@@ -54,7 +111,7 @@ class SafetyWatchdog:
             if self._has_connection:
                 elapsed = time.time() - self._last_heartbeat
                 if elapsed > config.WS_DISCONNECT_TIMEOUT:
-                    self._emergency_stop(f"心跳超时 {elapsed:.1f}s")
+                    self._on_heartbeat_timeout(f"心跳超时 {elapsed:.1f}s")
                     self._has_connection = False
             await asyncio.sleep(0.1)
 

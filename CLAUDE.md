@@ -14,7 +14,7 @@
 
 | 层级 | 技术 |
 |---|---|
-| 硬件 | Orange Pi 5 Pro (RK3588S 8核 6TOPS NPU)，L298N 电机驱动，EVE 18650 2S1P 7.4V,18650锂电池3A过充保护模块, LM2596S, HC-SR04超声波模块, ZY-ADS1115, 舵机SG90+云台, IIR520驱动模块, 5v3wLED灯珠*2, PCA9685A, 500万像素OV5640摄像头, 小喇叭扬声器8Ω2w, USB转音频免驱, 可编程RGB灯带 |
+| 硬件 | Orange Pi 5 Pro (RK3588S 8核 6TOPS NPU)，L298N 电机驱动，EVE 18650 2S1P 7.4V,18650锂电池3A过充保护模块, LM2596S, HC-SR04超声波模块, ZY-ADS1115, 舵机SG90+云台, IIR520驱动模块, 5v3wLED灯珠*2, PCA9685A, 500万像素OV5640摄像头, 小喇叭扬声器8Ω2w, USB转音频免驱, 可编程RGB灯带,ESP32-C3(独立的设备级电源管理 + 待机唤醒控制器),AMS1117,MOS触发驱动场效应管模块 |
 | 固件/驱动 | Python 3，sysfs PWM，wiringOP-Python（已编译） |
 | 后端 | FastAPI + uvicorn，WebSocket，asyncio |
 | 前端 | Vue 3 + TypeScript + Pinia + Vite |
@@ -54,11 +54,12 @@
 |---|---|
 | `docs/roadmap.md` | 开发阶段路线图、当前阶段进度（**唯一维护点**） |
 | `docs/architecture.md` | 六层架构、WebSocket 协议、Mock 模式、并发模型 |
-| `docs/hardware-wiring.md` | 引脚映射、接线图、电源拓扑、已踩坑 |
+| `docs/hardware-wiring.md` | 硬件清单总览 + 引脚映射、接线图、电源拓扑、已踩坑 |
 | `docs/decisions.md` | 重大技术决策及理由（ADR） |
 | `docs/known-issues.md` | 已知问题与 workaround |
-| `docs/changelog.md` | 每日进展（最近 4 周） |
-| `docs/archive/` | 归档的历史 changelog |
+| `docs/modules/` | 各模块文档（带 `code` + `last_verified`，供文档看板做新鲜度检测） |
+| `archive/` | 归档的历史知识库（已移出 docs/，不参与文档看板扫描） |
+| `docs-dashboard/` | 本地文档看板：`cd docs-dashboard && npm install && node server.js`，浏览器开 `localhost:4321`（已配 `config.json` 指向本项目） |
 
 ---
 
@@ -90,6 +91,13 @@ cd frontend && npm run dev
 
 ```bash
 XIAOCHENG_MOCK=1 python -m pytest tests/ -v
+```
+
+Windows PowerShell 常用命令：
+
+```powershell
+$env:XIAOCHENG_MOCK="1"; python -m uvicorn app.main:app --reload
+deactivate
 ```
 
 ---

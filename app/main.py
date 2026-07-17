@@ -22,6 +22,10 @@ from app.subsystems.motion import MotionSubsystem
 from app.subsystems.sensing import SensingSubsystem
 from app.subsystems.vision import VisionSubsystem
 from app.subsystems.audio import AudioSubsystem
+from app.subsystems.lighting import LightingSubsystem
+from app.subsystems.gimbal import GimbalSubsystem
+from app.subsystems.obstacle import ObstacleSubsystem
+from app.subsystems.nitro import NitroSubsystem
 from app.business.mode_manager import ModeManager
 from app.business.dispatcher import Dispatcher
 from app.business.safety import SafetyWatchdog
@@ -47,8 +51,16 @@ motion = MotionSubsystem()
 sensing = SensingSubsystem()
 vision = VisionSubsystem()
 audio = AudioSubsystem()
+lighting = LightingSubsystem()
+gimbal = GimbalSubsystem()
+obstacle = ObstacleSubsystem()
+nitro = NitroSubsystem()
 mode_manager = ModeManager()
-dispatcher = Dispatcher(motion, mode_manager, audio=audio)
+dispatcher = Dispatcher(
+    motion, mode_manager,
+    audio=audio, lighting=lighting,
+    gimbal=gimbal, obstacle=obstacle, nitro=nitro,
+)
 safety = SafetyWatchdog(motion, mode_manager)
 telemetry = TelemetryPublisher(motion, sensing)
 
@@ -67,14 +79,35 @@ async def lifespan(app: FastAPI):
     sensing.init()
     vision.init()
     audio.init()
+    lighting.init()
+    gimbal.init()
+    obstacle.init()
 
     # 注入依赖到 API 层
     ws_api.init(dispatcher, safety, telemetry)
     http_api.init(mode_manager)
     stream_api.init(vision)
 
+    # 注入子系统到安全看门狗
+    safety.set_audio(audio)
+    safety.set_lighting(lighting)
+    safety.set_gimbal(gimbal)
+    safety.set_obstacle(obstacle)
+    safety.set_nitro(nitro)
+
+    # 注入子系统到遥测
+    telemetry.set_obstacle(obstacle)
+    telemetry.set_gimbal(gimbal)
+    telemetry.set_nitro(nitro)
+
+    # 注入子系统到氮气
+    nitro.set_dependencies(motion=motion, lighting=lighting, audio=audio)
+
     # 启动后台任务
     safety_task = asyncio.create_task(safety.run())
+
+    # 启动避障扫描
+    obstacle.start_scanning()
 
     # 播放开机音效
     asyncio.create_task(audio.play_startup())
@@ -86,7 +119,11 @@ async def lifespan(app: FastAPI):
     logger.info("小橙 关闭中...")
     safety.stop()
     safety_task.cancel()
+    nitro.cleanup()
+    obstacle.cleanup()
+    gimbal.cleanup()
     audio.cleanup()
+    lighting.cleanup()
     vision.cleanup()
     sensing.cleanup()
     motion.cleanup()
@@ -98,7 +135,7 @@ async def lifespan(app: FastAPI):
 # ============================================================
 app = FastAPI(
     title="小橙 4WD",
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 

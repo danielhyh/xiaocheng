@@ -12,6 +12,10 @@ from typing import Any
 
 from app.subsystems.motion import MotionSubsystem
 from app.subsystems.audio import AudioSubsystem
+from app.subsystems.lighting import LightingSubsystem
+from app.subsystems.gimbal import GimbalSubsystem
+from app.subsystems.obstacle import ObstacleSubsystem
+from app.subsystems.nitro import NitroSubsystem
 from app.business.mode_manager import ModeManager, Mode
 
 logger = logging.getLogger(__name__)
@@ -30,23 +34,31 @@ class Dispatcher:
     """
 
     def __init__(self, motion: MotionSubsystem, mode_manager: ModeManager,
-                 audio: AudioSubsystem | None = None):
+                 audio: AudioSubsystem | None = None,
+                 lighting: LightingSubsystem | None = None,
+                 gimbal: GimbalSubsystem | None = None,
+                 obstacle: ObstacleSubsystem | None = None,
+                 nitro: NitroSubsystem | None = None):
         self._motion = motion
         self._mode = mode_manager
         self._audio = audio
+        self._lighting = lighting
+        self._gimbal = gimbal
+        self._obstacle = obstacle
+        self._nitro = nitro
         self._brake_until = 0.0
 
         # type → handler 映射表
-        # 新增子系统时只需在这里加一行
         self._handlers: dict[str, Any] = {
             "cmd.motion": self._handle_motion,
             "cmd.brake": self._handle_brake,
             "cmd.mode": self._handle_mode,
             "cmd.ping": self._handle_ping,
             "cmd.audio": self._handle_audio,
-            # "cmd.gimbal": self._handle_gimbal,   # Phase 6
-            # "cmd.light": self._handle_light,     # Phase 8
-            # "cmd.nitro": self._handle_nitro,     # Phase 10
+            "cmd.light": self._handle_light,
+            "cmd.gimbal": self._handle_gimbal,
+            "cmd.obstacle": self._handle_obstacle,
+            "cmd.nitro": self._handle_nitro,
         }
 
     async def dispatch(self, message: dict) -> dict | None:
@@ -67,7 +79,7 @@ class Dispatcher:
 
         try:
             result = handler(payload)
-            # 支持 async handler (如 cmd.audio)
+            # 支持 async handler
             if asyncio.iscoroutine(result):
                 result = await result
         except Exception as e:
@@ -98,19 +110,57 @@ class Dispatcher:
         if time.monotonic() < self._brake_until and (vx != 0 or vy != 0):
             logger.debug("忽略刹车保护窗口内的运动指令")
             return
+
+        # 氮气加速倍率
+        if self._nitro and self._nitro.is_active:
+            boost = self._nitro.boost_factor
+            vx = max(-1.0, min(1.0, vx * boost))
+            vy = max(-1.0, min(1.0, vy * boost))
+
+        # 前方避障安全联锁
+        if self._obstacle and self._obstacle.front_blocked and vy > 0:
+            logger.debug("前方障碍物,阻止前进")
+            vy = 0
+
+        # 后方避障安全联锁
+        if self._obstacle and self._obstacle.rear_blocked and vy < 0:
+            logger.debug("后方障碍物,阻止倒车")
+            vy = 0
+
         self._motion.handle_command(vx, vy)
 
         # 倒车提示音联动
+        is_reversing = vy < -0.1
         if self._audio:
-            if vy < -0.1:
+            if is_reversing:
                 self._audio.start_reverse_beep()
             else:
                 self._audio.stop_reverse_beep()
+
+        # 倒车灯联动
+        if self._lighting:
+            if is_reversing:
+                self._lighting.on_reverse_start()
+            else:
+                self._lighting.on_reverse_stop()
+
+        # 倒车状态通知避障子系统
+        if self._obstacle:
+            self._obstacle.set_reversing(is_reversing)
 
     def _handle_brake(self, payload: dict) -> dict:
         """处理 cmd.brake: 立即制动并清零运动状态。"""
         self._brake_until = time.monotonic() + BRAKE_SUPPRESS_SECONDS
         self._motion.brake()
+
+        # 刹车灯联动
+        if self._lighting:
+            self._lighting.on_brake()
+            asyncio.get_event_loop().call_later(
+                BRAKE_SUPPRESS_SECONDS + 0.2,
+                self._lighting.on_brake_release,
+            )
+
         return {"braked": True}
 
     def _handle_mode(self, payload: dict) -> dict:
@@ -133,3 +183,31 @@ class Dispatcher:
             logger.warning("音频子系统未初始化")
             return {"error": "audio not available"}
         return await self._audio.handle_command(payload)
+
+    async def _handle_light(self, payload: dict) -> dict | None:
+        """处理 cmd.light: { action, data }"""
+        if not self._lighting:
+            logger.warning("灯光子系统未初始化")
+            return {"error": "lighting not available"}
+        return await self._lighting.handle_command(payload)
+
+    async def _handle_gimbal(self, payload: dict) -> dict | None:
+        """处理 cmd.gimbal: { action, data }"""
+        if not self._gimbal:
+            logger.warning("云台子系统未初始化")
+            return {"error": "gimbal not available"}
+        return await self._gimbal.handle_command(payload)
+
+    async def _handle_obstacle(self, payload: dict) -> dict | None:
+        """处理 cmd.obstacle: { action }"""
+        if not self._obstacle:
+            logger.warning("避障子系统未初始化")
+            return {"error": "obstacle not available"}
+        return await self._obstacle.handle_command(payload)
+
+    async def _handle_nitro(self, payload: dict) -> dict | None:
+        """处理 cmd.nitro: { action }"""
+        if not self._nitro:
+            logger.warning("氮气子系统未初始化")
+            return {"error": "nitro not available"}
+        return await self._nitro.handle_command(payload)

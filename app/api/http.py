@@ -24,8 +24,8 @@ async def get_status():
     return {
         "mode": _mode_manager.current.value if _mode_manager else "unknown",
         "mock": config.USE_MOCK,
-        "version": "0.2.0",
-        "phase": "2.2",
+        "version": "0.3.0",
+        "phase": "10",
     }
 
 
@@ -34,9 +34,25 @@ async def get_config():
     """返回前端需要的配置参数"""
     return {
         "ws_path": "/ws/control",
-        "stream_path": "/stream/camera",   # Phase 3
+        "stream_path": "/stream/camera",
         "telemetry_intervals": {
             "motion": config.TELEMETRY_MOTION_INTERVAL,
             "sensors": config.TELEMETRY_SENSORS_INTERVAL,
+        },
+        "gimbal": {
+            "pan_min": config.GIMBAL_PAN_MIN,
+            "pan_max": config.GIMBAL_PAN_MAX,
+            "tilt_min": config.GIMBAL_TILT_MIN,
+            "tilt_max": config.GIMBAL_TILT_MAX,
+        },
+        "obstacle": {
+            "front_stop": config.US_FRONT_STOP_DISTANCE,
+            "front_warn": config.US_FRONT_WARN_DISTANCE,
+            "rear_stop": config.US_REAR_STOP_DISTANCE,
+        },
+        "nitro": {
+            "duration": config.NITRO_DURATION,
+            "cooldown": config.NITRO_COOLDOWN,
+            "boost_factor": config.NITRO_BOOST_FACTOR,
         },
     }

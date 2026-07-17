@@ -1,8 +1,11 @@
 """
 business/mode_manager.py — 模式管理器
 
-决定"此刻谁控车"。Phase 2.2 只实现 manual 模式,
-其他模式 (avoid/track/nav/voice) 留好枚举占位。
+决定"此刻谁控车"。
+manual: 手动遥控 (默认)
+avoid:  自动避障 (Phase 6, 手动控制 + 超声波安全联锁)
+
+其他模式 (track/nav/voice) 留好枚举占位,后续 Phase 激活。
 """
 
 import logging
@@ -13,10 +16,14 @@ logger = logging.getLogger(__name__)
 
 class Mode(str, Enum):
     MANUAL = "manual"
-    AVOID = "avoid"      # Phase 4
-    TRACK = "track"      # Phase 5
-    NAV = "nav"          # Phase 14
-    VOICE = "voice"      # Phase 13
+    AVOID = "avoid"      # Phase 6: 手动 + 避障联锁
+    TRACK = "track"      # Phase 5: 视觉追踪
+    NAV = "nav"          # Phase 14: SLAM 导航
+    VOICE = "voice"      # Phase 13: 语音控制
+
+
+# 当前已实现的模式
+_IMPLEMENTED_MODES = {Mode.MANUAL, Mode.AVOID}
 
 
 class ModeManager:
@@ -39,7 +46,7 @@ class ModeManager:
         """
         切换模式。返回切换后的模式。
 
-        TODO: 后续 Phase 加校验 (如 track 要求 vision 已启动)
+        只允许切换到已实现的模式。
         """
         try:
             new_mode = Mode(target)
@@ -47,9 +54,8 @@ class ModeManager:
             logger.warning(f"未知模式: {target}, 保持 {self._mode.value}")
             return self._mode
 
-        # Phase 2.2 只允许 manual
-        if new_mode != Mode.MANUAL:
-            logger.info(f"模式 {new_mode.value} 尚未实现, 保持 manual")
+        if new_mode not in _IMPLEMENTED_MODES:
+            logger.info(f"模式 {new_mode.value} 尚未实现, 保持 {self._mode.value}")
             return self._mode
 
         old = self._mode

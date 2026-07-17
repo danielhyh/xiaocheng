@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend (FastAPI/uvicorn)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"],
+      "port": 8000
+    },
+    {
+      "name": "frontend (Vue/Vite)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "docs-dashboard",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["docs-dashboard/server.js"],
+      "port": 4330
+    }
+  ]
+}

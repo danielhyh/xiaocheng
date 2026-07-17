@@ -53,7 +53,7 @@ class RealAudioDriver:
         if loop:
             return [
                 "ffplay", "-nodisp", "-loglevel", "error",
-                "-stream_loop", "-1",
+                "-loop", "0",
                 filepath,
             ]
         if filepath.endswith(".wav"):

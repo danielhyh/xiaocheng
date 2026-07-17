@@ -30,6 +30,10 @@ pnpm-debug.log*
 # OS and editor local state
 .DS_Store
 Thumbs.db
+.vscode/
+.mcp.json
+.claude/worktrees/
+docs-dashboard/
 
 # JetBrains IDE
 .idea/

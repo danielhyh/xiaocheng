@@ -33,16 +33,16 @@ class RealCameraDriver:
         self._height = config.CAMERA_HEIGHT
 
     @staticmethod
-    def _find_camera_device(preferred: int) -> str:
+    def _find_camera_device(preferred: int) -> int | str:
         """
         尝试打开 preferred 设备号,失败则扫描 /dev/video* 。
-        返回可用的设备路径 (如 "/dev/video1")。
+        返回设备号 (int) 或设备路径 (str, 如 "/dev/video1")。
         """
-        # 先试配置值
+        # 先试配置值 (保持 int,V4L2 后端不接受纯数字字符串)
         cap = cv2.VideoCapture(preferred, cv2.CAP_V4L2)
         if cap.isOpened():
             cap.release()
-            return str(preferred)
+            return preferred
 
         logger.warning(
             f"配置的摄像头设备 {preferred} 打不开,开始自动扫描..."

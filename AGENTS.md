@@ -39,6 +39,10 @@
 | `app/drivers/audio/` | USB 声卡驱动（aplay/ffplay/edge-tts/amixer），含 Real/Mock | ✅ P9 完成 |
 | `app/subsystems/audio.py` | 音效播放、TTS、鸣笛循环、倒车提示、低压告警 | ✅ P9 完成 |
 | `frontend/src/components/AudioPanel.vue` | 音量滑块 + TTS 输入框 | ✅ P9 完成 |
+| `app/drivers/led/` | PCA9685 I2C PWM 前大灯驱动（IRF520 MOSFET），含 Real/Mock | ✅ P8 完成 |
+| `app/drivers/strip/` | WS2812B 灯带驱动（SPI bitbang），含 Real/Mock | ✅ P8 完成 |
+| `app/subsystems/lighting.py` | 灯光子系统（大灯调光、灯带模式、刹车/倒车/警灯/氛围灯、motion 联动） | ✅ P8 完成 |
+| `frontend/src/components/LightPanel.vue` | 大灯开关 + 亮度滑块 + 灯带模式选择 | ✅ P8 完成 |
 
 ---
 
@@ -54,11 +58,11 @@
 |---|---|
 | `docs/roadmap.md` | 开发阶段路线图、当前阶段进度（**唯一维护点**） |
 | `docs/architecture.md` | 六层架构、WebSocket 协议、Mock 模式、并发模型 |
-| `docs/hardware-wiring.md` | 引脚映射、接线图、电源拓扑、已踩坑 |
+| `docs/hardware-wiring.md` | 硬件清单总览 + 引脚映射、接线图、电源拓扑、已踩坑 |
 | `docs/decisions.md` | 重大技术决策及理由（ADR） |
 | `docs/known-issues.md` | 已知问题与 workaround |
-| `docs/changelog.md` | 每日进展（最近 4 周） |
-| `docs/archive/` | 归档的历史 changelog |
+| `docs/modules/` | 各模块文档（带 `code` + `last_verified`，供文档看板做新鲜度检测） |
+| `archive/` | 归档的历史知识库（已移出 docs/，不参与文档看板扫描） |
 
 ---
 
