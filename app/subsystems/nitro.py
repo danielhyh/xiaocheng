@@ -35,7 +35,6 @@ class NitroSubsystem:
 
     def __init__(self):
         self._active = False
-        self._cooling = False
         self._last_trigger = 0.0
         self._nitro_task: asyncio.Task | None = None
 
@@ -81,12 +80,15 @@ class NitroSubsystem:
 
         self._active = True
         self._last_trigger = now
+        if self._lighting:
+            self._lighting.start_nitro_effect()
         self._nitro_task = asyncio.create_task(self._nitro_effect())
         logger.info("🔥 氮气加速触发!")
         return {"nitro": "activated", "duration": config.NITRO_DURATION}
 
     async def _nitro_effect(self) -> None:
         """氮气加速效果循环"""
+        current_task = asyncio.current_task()
         try:
             # 播放音效
             if self._audio:
@@ -97,65 +99,19 @@ class NitroSubsystem:
                     })
                 )
 
-            # 灯效: 灯带火焰色
-            if self._lighting:
-                self._lighting._stop_mode_task()
-                self._lighting._strip_mode = "nitro"
-                self._lighting._mode_active = True
-                self._lighting._mode_task = asyncio.create_task(
-                    self._flame_loop()
-                )
-
             # 持续 NITRO_DURATION 秒
-            start = time.monotonic()
-            while time.monotonic() - start < config.NITRO_DURATION:
-                # 大灯闪烁
-                if self._lighting and self._lighting._headlight_on:
-                    self._lighting._led.set_both(100)
-                    await asyncio.sleep(0.1)
-                    self._lighting._led.set_both(
-                        self._lighting._headlight_brightness
-                    )
-                    await asyncio.sleep(0.1)
-                else:
-                    await asyncio.sleep(0.2)
+            await asyncio.sleep(config.NITRO_DURATION)
 
         except asyncio.CancelledError:
             pass
         finally:
-            self._active = False
-            self._cooling = True
-            # 恢复灯效
-            if self._lighting:
-                self._lighting._stop_mode_task()
-                self._lighting._strip_mode = "off"
-                self._lighting._strip.clear()
-                if self._lighting._headlight_on:
-                    self._lighting._led.set_both(
-                        self._lighting._headlight_brightness
-                    )
-            logger.info("氮气加速结束,进入冷却")
-
-            # 冷却计时
-            await asyncio.sleep(config.NITRO_COOLDOWN)
-            self._cooling = False
-
-    async def _flame_loop(self) -> None:
-        """火焰灯效: 红橙黄随机闪烁"""
-        import random
-        strip = self._lighting._strip
-        try:
-            while self._lighting._mode_active:
-                for i in range(strip._num_leds):
-                    # 火焰色: 红为主,随机橙黄
-                    r = random.randint(200, 255)
-                    g = random.randint(20, 100)
-                    b = 0
-                    strip.set_pixel(i, r, g, b)
-                strip.show()
-                await asyncio.sleep(0.05)
-        except asyncio.CancelledError:
-            strip.clear()
+            # 被取消的旧任务不得覆盖后来重触发的新任务状态
+            if self._nitro_task is current_task:
+                self._nitro_task = None
+                self._active = False
+                if self._lighting:
+                    self._lighting.stop_nitro_effect()
+                logger.info("氮气加速结束,进入冷却")
 
     @property
     def is_active(self) -> bool:
@@ -166,18 +122,19 @@ class NitroSubsystem:
         """当前加速倍率 (1.0 = 正常)"""
         return config.NITRO_BOOST_FACTOR if self._active else 1.0
 
-    def _get_status(self) -> dict:
-        now = time.monotonic()
-        cooldown_remaining = 0.0
-        if self._last_trigger > 0:
-            elapsed = now - self._last_trigger
-            if elapsed < config.NITRO_COOLDOWN:
-                cooldown_remaining = round(config.NITRO_COOLDOWN - elapsed, 1)
+    @property
+    def cooldown_remaining(self) -> float:
+        """距离下次可触发的剩余秒数。冷却从触发时刻开始计算。"""
+        if self._last_trigger <= 0:
+            return 0.0
+        elapsed = time.monotonic() - self._last_trigger
+        return round(max(0.0, config.NITRO_COOLDOWN - elapsed), 1)
 
+    def _get_status(self) -> dict:
         return {
             "active": self._active,
-            "cooling": self._cooling,
-            "cooldown_remaining": cooldown_remaining,
+            "cooling": not self._active and self.cooldown_remaining > 0,
+            "cooldown_remaining": self.cooldown_remaining,
             "boost_factor": self.boost_factor,
         }
 
@@ -185,8 +142,10 @@ class NitroSubsystem:
         """断连安全回调"""
         if self._nitro_task and not self._nitro_task.done():
             self._nitro_task.cancel()
-            self._nitro_task = None
+        self._nitro_task = None
         self._active = False
+        if self._lighting:
+            self._lighting.stop_nitro_effect()
 
     def cleanup(self) -> None:
         self.stop_all()

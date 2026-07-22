@@ -19,8 +19,9 @@ interface UseWebSocketOptions {
 }
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
+  const wsScheme = location.protocol === 'https:' ? 'wss' : 'ws'
   const {
-    url = `ws://${location.host}/ws/control`,
+    url = `${wsScheme}://${location.host}/ws/control`,
     reconnect = true,
     maxRetries = 10,
   } = options
@@ -29,40 +30,52 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const retryCount = ref(0)
 
   let ws: WebSocket | null = null
-  let handlers: Map<string, MessageHandler[]> = new Map()
+  const handlers: Map<string, MessageHandler[]> = new Map()
   let reconnectTimer: number | null = null
+  let allowReconnect = reconnect
 
   // ---- 连接 ----
 
   function connect() {
-    if (ws?.readyState === WebSocket.OPEN) return
+    if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return
 
-    ws = new WebSocket(url)
+    allowReconnect = reconnect
+    if (reconnectTimer !== null) {
+      window.clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
 
-    ws.onopen = () => {
+    const socket = new WebSocket(url)
+    ws = socket
+
+    socket.onopen = () => {
+      if (ws !== socket) return
       connected.value = true
       retryCount.value = 0
       console.log('[WS] 已连接')
     }
 
-    ws.onclose = () => {
+    socket.onclose = () => {
+      if (ws !== socket) return
+      ws = null
       connected.value = false
       console.log('[WS] 断开')
-      if (reconnect && retryCount.value < maxRetries) {
+      if (allowReconnect && retryCount.value < maxRetries && reconnectTimer === null) {
         const delay = Math.min(1000 * 2 ** retryCount.value, 10000)
         console.log(`[WS] ${delay}ms 后重连...`)
         reconnectTimer = window.setTimeout(() => {
+          reconnectTimer = null
           retryCount.value++
           connect()
         }, delay)
       }
     }
 
-    ws.onerror = (e) => {
+    socket.onerror = (e) => {
       console.error('[WS] 错误', e)
     }
 
-    ws.onmessage = (event) => {
+    socket.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data)
         routeMessage(msg)
@@ -117,13 +130,15 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   // ---- 断开 ----
 
   function disconnect() {
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer)
+    allowReconnect = false
+    if (reconnectTimer !== null) {
+      window.clearTimeout(reconnectTimer)
       reconnectTimer = null
     }
-    ws?.close()
+    const socket = ws
     ws = null
     connected.value = false
+    socket?.close()
   }
 
   // 组件卸载时断开

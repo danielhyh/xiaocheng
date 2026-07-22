@@ -61,7 +61,7 @@ const cpuColor = computed(() => {
     </div>
 
     <!-- 中: 模式切换 (绝对定位居中, 不受 flex justify-between 影响) -->
-    <div class="absolute left-1/2 top-0 -translate-x-1/2 z-[2]">
+    <div class="mode-center absolute left-1/2 top-0 -translate-x-1/2 z-[2]">
       <ModeSwitch :bus="bus" />
     </div>
 

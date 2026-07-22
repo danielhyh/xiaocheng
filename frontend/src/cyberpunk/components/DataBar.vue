@@ -14,11 +14,11 @@ import dashboardBgUrl from '../../assets/cyberpunk/data-bar-bg.png'
 
 const store = useCarStore()
 
-// 当前速度: 从 tel.motion.speed 取值 (单位 m/s, 后端约定)
+// 当前速度: 后端输出归一化速度百分比 (0-100)
 const speedText = computed(() => {
   const s = store.motion.speed
   if (s === null || s === undefined || !Number.isFinite(s)) return '--'
-  return `${fmtNum(s, 1)}m/s`
+  return `${fmtNum(s, 0)}%`
 })
 
 // 累计里程: 后端暂未推送, 保留占位; 如果后续后端加了 odo 字段, 改这里即可
@@ -58,23 +58,23 @@ const tiltText = computed(() => {
     />
 
     <!-- 速度 -->
-    <span class="relative z-10 databar-cell">
+    <span class="relative z-10 databar-cell databar-speed">
       <span class="text-white/45 databar-label">速度</span>
       <span class="text-neon-cyan font-semibold databar-num">{{ speedText }}</span>
     </span>
 
-    <span class="relative z-10 w-px h-3 bg-neon-cyan/30 flex-shrink-0"></span>
+    <span class="relative z-10 w-px h-3 bg-neon-cyan/30 flex-shrink-0 databar-divider"></span>
 
     <!-- 里程 -->
-    <span class="relative z-10 databar-cell">
+    <span class="relative z-10 databar-cell databar-odometer">
       <span class="text-white/45 databar-label">里程</span>
       <span class="text-neon-green font-semibold databar-num">{{ odometerText }}</span>
     </span>
 
-    <span class="relative z-10 w-px h-3 bg-neon-cyan/30 flex-shrink-0"></span>
+    <span class="relative z-10 w-px h-3 bg-neon-cyan/30 flex-shrink-0 databar-odometer-divider"></span>
 
     <!-- 云台角度 -->
-    <span class="relative z-10 databar-cell">
+    <span class="relative z-10 databar-cell databar-gimbal">
       <span class="text-white/45 databar-label--short">P:</span>
       <span class="text-neon-amber font-semibold databar-num--short">{{ panText }}</span>
       <span class="text-white/45 databar-label--short ml-3">T:</span>

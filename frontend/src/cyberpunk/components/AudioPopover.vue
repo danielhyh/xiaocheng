@@ -89,6 +89,7 @@ function submitTts() {
         </svg>
         <input
           type="range" min="0" max="100" step="1"
+          aria-label="音量"
           :value="volume"
           @input="onVolumeInput"
           class="cp-range flex-1"
@@ -99,13 +100,13 @@ function submitTts() {
       <!-- 麦克风 -->
       <div class="row justify-between">
         <span class="row-label">麦克风</span>
-        <button class="cp-switch" role="switch" :aria-checked="micOn" @click="toggleMic"></button>
+        <button class="cp-switch" role="switch" aria-label="麦克风开关" :aria-checked="micOn" @click="toggleMic"></button>
       </div>
 
       <!-- TTS 开关 -->
       <div class="row justify-between">
         <span class="row-label whitespace-nowrap">语音播报 (TTS)</span>
-        <button class="cp-switch" role="switch" :aria-checked="ttsOn"
+        <button class="cp-switch" role="switch" aria-label="语音播报开关" :aria-checked="ttsOn"
                 @click="ttsOn = !ttsOn"></button>
       </div>
 
@@ -115,6 +116,7 @@ function submitTts() {
           v-model="ttsText"
           :disabled="!ttsOn"
           type="text"
+          aria-label="语音播报文字"
           placeholder="TTS: 请输入文字..."
           class="tts-input"
           @keydown.enter="submitTts"

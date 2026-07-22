@@ -26,6 +26,10 @@ class MockStripDriver:
         self._segments = config.STRIP_SEGMENTS
         self._initialized = False
 
+    @property
+    def num_leds(self) -> int:
+        return self._num_leds
+
     def init(self) -> None:
         self._initialized = True
         logger.info(f"[MOCK] StripDriver 初始化完成 (leds={self._num_leds})")

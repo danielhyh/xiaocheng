@@ -86,6 +86,8 @@ function onCenter() {
       <div
         ref="baseEl"
         class="relative rounded-full touch-none overflow-hidden"
+        role="application"
+        aria-label="云台控制摇杆，双击回中"
         :style="{ width: DIAMETER + 'px', height: DIAMETER + 'px' }"
         @pointerdown="onPointerDown"
         @pointermove="onPointerMove"

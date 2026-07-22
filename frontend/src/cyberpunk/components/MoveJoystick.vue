@@ -135,12 +135,14 @@ defineExpose({
 </script>
 
 <template>
-  <div class="absolute bottom-6 left-6 z-20 flex flex-col items-center
+  <div class="move-joystick absolute bottom-6 left-6 z-20 flex flex-col items-center
               select-none">
     <div class="relative rounded-full p-[3px]">
       <div
         ref="baseEl"
         class="relative rounded-full touch-none overflow-hidden"
+        role="application"
+        aria-label="车辆移动摇杆，也可使用 WASD 或方向键控制"
         :style="{ width: DIAMETER + 'px', height: DIAMETER + 'px' }"
         @pointerdown="onPointerDown"
         @pointermove="onPointerMove"

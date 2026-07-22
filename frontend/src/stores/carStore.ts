@@ -28,16 +28,16 @@ export const useCarStore = defineStore('car', () => {
 
   // 传感器遥测 (tel.sensors)
   const sensors = reactive({
-    battery_voltage: 0,
-    battery_percent: 0,
-    battery_level: 'ok' as 'ok' | 'low' | 'critical' | 'unknown',
+    battery_voltage: null as number | null,
+    battery_percent: null as number | null,
+    battery_level: 'unknown' as 'ok' | 'low' | 'critical' | 'unknown',
     cpu_temp: null as number | null,
     // Phase 7 增强
     wifi_rssi: null as number | null,
     cpu_usage: null as number | null,
     // Phase 4 云台
-    gimbal_pan: 90,
-    gimbal_tilt: 90,
+    gimbal_pan: null as number | null,
+    gimbal_tilt: null as number | null,
     // Phase 6 避障
     front_distance: null as number | null,
     rear_distance: null as number | null,

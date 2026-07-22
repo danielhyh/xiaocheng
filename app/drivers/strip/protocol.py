@@ -20,6 +20,11 @@ from typing import Protocol
 class StripDriverProtocol(Protocol):
     """WS2812B 灯带驱动接口"""
 
+    @property
+    def num_leds(self) -> int:
+        """灯带像素数量。"""
+        ...
+
     def init(self) -> None:
         """初始化灯带 (GPIO / SPI 配置)"""
         ...

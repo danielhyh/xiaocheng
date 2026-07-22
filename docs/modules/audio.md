@@ -16,3 +16,4 @@ decisions: [ADR-008]
 - TTS：edge-tts，zh-CN-YunxiNeural。音量：amixer numid=4（0–147）。
 - 音效套装由 Python 程序合成（horn/startup/low_battery/reverse/warning/nitro/connect/disconnect）。
 - 倒车提示由 motion `vy < -0.1` 联动触发。
+- `last_verified` 是重接线前的真板记录；USB 声卡和喇叭复接后需重新播放/TTS/音量验收。

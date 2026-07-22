@@ -40,14 +40,11 @@ async def ws_control(ws: WebSocket):
     await ws.accept()
     logger.info("WebSocket 连接建立")
 
-    # 注入遥测发送函数
     async def send_json(msg: dict):
         await ws.send_json(msg)
 
-    _telemetry.set_send_fn(send_json)
-
-    # 启动遥测推送
-    telemetry_task = asyncio.create_task(_telemetry.run())
+    # 每个连接拥有独立遥测任务，互不覆盖发送目标和运行状态
+    telemetry_task = asyncio.create_task(_telemetry.run(send_json))
 
     try:
         while True:
@@ -72,7 +69,6 @@ async def ws_control(ws: WebSocket):
         logger.error(f"WebSocket 异常: {e}")
         _safety.on_disconnect()
     finally:
-        _telemetry.stop()
         telemetry_task.cancel()
         try:
             await telemetry_task

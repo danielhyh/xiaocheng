@@ -103,7 +103,8 @@ class Dispatcher:
     def _handle_motion(self, payload: dict) -> None:
         """处理 cmd.motion: { vx, vy }"""
         if self._mode.current != Mode.MANUAL:
-            pass
+            logger.debug("忽略非手动模式下的手动运动指令")
+            return
 
         vx = float(payload.get("vx", 0))
         vy = float(payload.get("vy", 0))

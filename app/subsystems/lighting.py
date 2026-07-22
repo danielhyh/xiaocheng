@@ -12,6 +12,7 @@ subsystems/lighting.py — 灯光子系统
 
 import asyncio
 import logging
+import random
 
 from app.drivers.led import LedDriver
 from app.drivers.strip import StripDriver
@@ -22,6 +23,10 @@ logger = logging.getLogger(__name__)
 
 class LightingSubsystem:
     """灯光子系统: 前大灯 + WS2812B 灯带"""
+
+    STRIP_MODES = frozenset({
+        "off", "tail", "brake", "reverse", "police", "ambient", "nitro",
+    })
 
     def __init__(self):
         self._led = LedDriver()
@@ -35,6 +40,7 @@ class LightingSubsystem:
         self._strip_mode = "off"  # off / tail / brake / reverse / police / ambient
         self._mode_task: asyncio.Task | None = None
         self._mode_active = False
+        self._nitro_restore_mode: str | None = None
 
         # 联动状态 (由 dispatcher 调用)
         self._braking = False
@@ -95,31 +101,19 @@ class LightingSubsystem:
     async def _action_strip_mode(self, data: dict) -> dict:
         """切换灯带模式"""
         mode = data.get("mode", "off")
+        if mode == "nitro":
+            return {"error": "nitro mode is managed by NitroSubsystem"}
+        if mode not in self.STRIP_MODES:
+            logger.warning(f"未知灯带模式: {mode}")
+            return {"error": f"unknown strip mode: {mode}"}
+        if self._strip_mode == "nitro":
+            return {"error": "nitro effect is active"}
         if mode == self._strip_mode:
             return {"strip_mode": mode}
 
         # 停止当前模式
         self._stop_mode_task()
-
-        self._strip_mode = mode
-
-        if mode == "off":
-            self._strip.clear()
-        elif mode == "tail":
-            self._apply_tail()
-        elif mode == "brake":
-            self._apply_brake()
-        elif mode == "reverse":
-            self._apply_reverse()
-        elif mode == "police":
-            self._mode_active = True
-            self._mode_task = asyncio.create_task(self._police_loop())
-        elif mode == "ambient":
-            self._mode_active = True
-            self._mode_task = asyncio.create_task(self._ambient_loop())
-        else:
-            logger.warning(f"未知灯带模式: {mode}")
-            return {"error": f"unknown strip mode: {mode}"}
+        self._start_strip_mode(mode)
 
         return {"strip_mode": mode}
 
@@ -179,22 +173,46 @@ class LightingSubsystem:
                 self._strip.clear()
                 await asyncio.sleep(0.05)
         except asyncio.CancelledError:
-            self._strip.clear()
+            pass
 
     async def _ambient_loop(self) -> None:
         """氛围灯: 彩虹渐变循环"""
         offset = 0
         try:
             while self._mode_active:
-                for i in range(self._strip._num_leds):
-                    hue = ((i * 256 // self._strip._num_leds) + offset) % 256
+                for i in range(self._strip.num_leds):
+                    hue = ((i * 256 // self._strip.num_leds) + offset) % 256
                     r, g, b = self._hsv_to_rgb(hue, 255, 200)
                     self._strip.set_pixel(i, r, g, b)
                 self._strip.show()
                 offset = (offset + 4) % 256
                 await asyncio.sleep(0.05)
         except asyncio.CancelledError:
-            self._strip.clear()
+            pass
+
+    async def _nitro_loop(self) -> None:
+        """氮气灯效: 火焰色灯带 + 已开启大灯快速闪烁。"""
+        try:
+            while self._mode_active and self._strip_mode == "nitro":
+                for i in range(self._strip.num_leds):
+                    self._strip.set_pixel(
+                        i,
+                        random.randint(200, 255),
+                        random.randint(20, 100),
+                        0,
+                    )
+                self._strip.show()
+                if self._headlight_on:
+                    self._led.set_both(100)
+                await asyncio.sleep(0.1)
+                if self._headlight_on:
+                    self._led.set_both(self._headlight_brightness)
+                await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if self._headlight_on:
+                self._led.set_both(self._headlight_brightness)
 
     @staticmethod
     def _hsv_to_rgb(h: int, s: int, v: int) -> tuple[int, int, int]:
@@ -273,6 +291,44 @@ class LightingSubsystem:
 
     # ---- 内部工具 ----
 
+    def start_nitro_effect(self) -> None:
+        """启动临时氮气灯效，并记住当前模式以便结束后恢复。"""
+        if self._strip_mode == "nitro":
+            return
+        self._nitro_restore_mode = self._strip_mode
+        self._stop_mode_task()
+        self._start_strip_mode("nitro")
+
+    def stop_nitro_effect(self) -> None:
+        """停止氮气灯效并恢复触发前的灯带模式。"""
+        if self._strip_mode != "nitro":
+            return
+        restore_mode = self._nitro_restore_mode or "off"
+        self._nitro_restore_mode = None
+        self._stop_mode_task()
+        self._start_strip_mode(restore_mode)
+
+    def _start_strip_mode(self, mode: str) -> None:
+        """应用一个已校验的灯带模式。调用前须先停止当前动态任务。"""
+        self._strip_mode = mode
+        if mode == "off":
+            self._strip.clear()
+        elif mode == "tail":
+            self._apply_tail()
+        elif mode == "brake":
+            self._apply_brake()
+        elif mode == "reverse":
+            self._apply_reverse()
+        elif mode == "police":
+            self._mode_active = True
+            self._mode_task = asyncio.create_task(self._police_loop())
+        elif mode == "ambient":
+            self._mode_active = True
+            self._mode_task = asyncio.create_task(self._ambient_loop())
+        elif mode == "nitro":
+            self._mode_active = True
+            self._mode_task = asyncio.create_task(self._nitro_loop())
+
     def _stop_mode_task(self) -> None:
         """停止当前动态灯效任务"""
         self._mode_active = False
@@ -300,6 +356,8 @@ class LightingSubsystem:
     def stop_all(self) -> None:
         """断连安全回调: 关闭所有灯效"""
         self._stop_mode_task()
+        self._strip_mode = "off"
+        self._nitro_restore_mode = None
         self._strip.clear()
         # 大灯保持当前状态 (断连不关大灯,安全考虑)
         logger.info("灯光子系统: 灯效已停止")

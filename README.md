@@ -1,6 +1,16 @@
-# 小橙 4WD 智能小车 — Phase 2.2
+# 小橙 4WD 智能小车
 
-> 系统设计 v0.2 · FastAPI + WebSocket + Vue 控制面板
+> Orange Pi 5 Pro · FastAPI + WebSocket + Vue 控制面板
+
+## 当前项目口径
+
+- 当前电池组：EVE 18650 **2S2P** + 2S 保护板。
+- OV13855：前置 FPV/视觉主摄；OV5640 UVC：后置倒车/后视。
+- ADS1115：采样电池总压，服务电量显示与 7.2V 低压安全边界。
+- ESP32-C3 + AMS1117：Phase 15 带外电源管理，用于待机、远程开机和优雅断电；当前不接入。
+- 当前正在用 Board-A/Board-B、KF301 和排针重做线束。以前接通过的模块在重接后重新验收前记为“待复验”。
+
+信息源分工：实施顺序和当前阶段看 [`docs/roadmap.md`](docs/roadmap.md)；硬件角色、引脚和实物状态只看 [`docs/hardware-wiring.md`](docs/hardware-wiring.md)；软件模块状态看 [`docs/modules/`](docs/modules/)。
 
 ## 快速启动
 
@@ -47,41 +57,15 @@ XIAOCHENG_MOCK=1 python -m pytest tests/ -v
 ```
 xiaocheng/
 ├── app/
-│   ├── main.py              # FastAPI 入口,组装所有层
-│   ├── config.py            # 板级常量 + USE_MOCK 开关
-│   ├── api/
-│   │   ├── http.py          # HTTP: /api/status, /api/config
-│   │   ├── websocket.py     # WS: /ws/control (envelope 协议)
-│   │   └── stream.py        # MJPEG: /stream/camera (Phase 3)
-│   ├── business/
-│   │   ├── dispatcher.py    # 指令分发 (type → handler)
-│   │   ├── mode_manager.py  # 模式状态机 (manual/avoid/track/...)
-│   │   ├── safety.py        # 安全看门狗 (断连自动停车)
-│   │   └── telemetry.py     # 遥测推送 (tel.motion + tel.sensors)
-│   ├── subsystems/
-│   │   └── motion.py        # 运动子系统 (vx/vy → 差速驱动)
-│   └── drivers/
-│       └── motor/
-│           ├── __init__.py   # Mock 开关 (自动选实现)
-│           ├── protocol.py   # 驱动接口定义
-│           ├── real.py       # 真实驱动 (sysfs PWM + GPIO)
-│           └── mock.py       # Mock 驱动 (日志 + 状态)
-├── frontend/
-│   ├── src/
-│   │   ├── App.vue           # 根组件 (横屏布局)
-│   │   ├── main.ts           # Vue 入口
-│   │   ├── components/
-│   │   │   ├── TopBar.vue      # 连接状态 + 电量 + 模式
-│   │   │   ├── CameraView.vue  # 摄像头占位 (Phase 3)
-│   │   │   ├── MotionControl.vue # 虚拟摇杆 + 速度环 + HUD
-│   │   │   └── FuncButtons.vue   # 功能按钮占位 (P6/P8/P9/P10)
-│   │   ├── composables/
-│   │   │   └── useWebSocket.ts # WS 连接 + 重连 + 消息路由
-│   │   └── stores/
-│   │       └── carStore.ts     # Pinia: 遥测缓存
-│   └── package.json
-├── tests/
-│   └── test_motion.py        # 差速映射测试 (5 cases)
+│   ├── main.py              # FastAPI 入口与生命周期组装
+│   ├── config.py            # 当前软件常量（目标硬件接线以 hardware-wiring.md 为准）
+│   ├── api/                 # HTTP / WebSocket / MJPEG
+│   ├── business/            # dispatcher / safety / telemetry / mode
+│   ├── subsystems/          # motion / sensing / vision / gimbal / lighting / audio / obstacle / nitro
+│   └── drivers/             # motor / adc / camera / servo / led / strip / audio / ultrasonic
+├── frontend/                # Vue 3 + CyberpunkPanel
+├── tests/                   # 后端单元测试
+├── docs/                    # 路线、架构、硬件、ADR、模块文档
 ├── requirements.txt
 └── README.md
 ```
@@ -92,19 +76,11 @@ xiaocheng/
 { "type": "cmd.motion", "ts": 1744876800.123, "payload": { "vx": 0.5, "vy": 0.8 } }
 ```
 
-详见系统设计文档 §4。
+详见 [`docs/architecture.md`](docs/architecture.md) 的 WebSocket 协议章节。
 
 ## 扩展新功能
 
-以 Phase 6 云台为例,需要改的地方:
-
-1. `config.py` — 加 I2C 地址、舵机行程常量
-2. `drivers/servo/` — 新建 real.py + mock.py
-3. `subsystems/gimbal.py` — 封装角度/限位/平滑
-4. `business/dispatcher.py` — 注册 `cmd.gimbal` handler
-5. `frontend/src/components/GimbalControl.vue` — 新组件
-
-核心骨架 (API 层、envelope、WS 路由) 一行不改。
+新硬件遵循 Real/Mock 驱动 → 子系统 → dispatcher/API → 前端的分层方式。完整约束见 [`docs/architecture.md`](docs/architecture.md)，不要从业务层直接操作 GPIO/I2C。
 
 ## 当前控制行为说明
 

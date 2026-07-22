@@ -168,6 +168,7 @@ const resText = computed(() => props.resolution ?? '--')
         height: enlarged ? '28px' : '20px',
       }"
       :title="enlarged ? '缩小' : '放大'"
+      :aria-label="enlarged ? '缩小后视画面' : '放大后视画面'"
       @click.stop="toggleSize"
     >
       <!-- 放大图标 -->

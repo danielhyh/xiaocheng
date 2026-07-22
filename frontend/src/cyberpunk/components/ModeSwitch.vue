@@ -20,6 +20,7 @@ const props = defineProps<{ bus: CommandBus }>()
 const store = useCarStore()
 
 const SMART_MODE = 'avoid'  // 当前"智能"对应后端 AVOID
+const SMART_MODE_AVAILABLE = false
 
 const isManual = computed(() => store.mode === 'manual')
 const isSmart = computed(() => store.mode !== 'manual')
@@ -29,6 +30,7 @@ function selectManual() {
   props.bus.sendMode('manual')
 }
 function selectSmart() {
+  if (!SMART_MODE_AVAILABLE) return
   if (store.mode !== 'manual') return
   props.bus.sendMode(SMART_MODE)
 }
@@ -45,6 +47,7 @@ function selectSmart() {
       <button
         class="mode-btn mode-btn--left"
         :class="{ 'mode-btn--active': isManual }"
+        :aria-pressed="isManual"
         @click="selectManual"
       >
         手动
@@ -52,6 +55,9 @@ function selectSmart() {
       <button
         class="mode-btn mode-btn--right"
         :class="{ 'mode-btn--active': isSmart }"
+        :aria-pressed="isSmart"
+        :disabled="!SMART_MODE_AVAILABLE"
+        title="智能避障模式尚未开放"
         @click="selectSmart"
       >
         智能
@@ -144,5 +150,11 @@ function selectSmart() {
     inset 0 0 10px rgba(52, 224, 255, 0.2),
     0 0 2px rgba(52, 224, 255, 0.8);
   text-shadow: 0 0 8px rgba(52, 224, 255, 0.7);
+}
+
+.mode-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  filter: saturate(0.45);
 }
 </style>

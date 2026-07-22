@@ -21,22 +21,21 @@ const brightness = ref(store.lighting.headlight_brightness)
 watch(() => store.lighting.headlight_on, (v) => { headlightOn.value = v })
 watch(() => store.lighting.headlight_brightness, (v) => { brightness.value = v })
 
-// 6 档常用模式 (与图示一致)
-// key 用于前端高亮去重 (后端无法区分 呼吸/氛围灯, 都映射到 ambient)
+// 与后端 LightingSubsystem 实际支持的模式一一对应
 const stripModes = [
   { key: 'off',      label: '关闭',   sendId: 'off' },
-  { key: 'tail',     label: '常亮',   sendId: 'tail' },
-  { key: 'breath',   label: '呼吸',   sendId: 'ambient' },
-  { key: 'reverse',  label: '流水',   sendId: 'reverse' },
+  { key: 'tail',     label: '尾灯',   sendId: 'tail' },
+  { key: 'brake',    label: '刹车',   sendId: 'brake' },
+  { key: 'reverse',  label: '倒车',   sendId: 'reverse' },
   { key: 'police',   label: '警灯',   sendId: 'police' },
   { key: 'ambient',  label: '氛围灯', sendId: 'ambient' },
 ]
 
-// 本地激活态: 跟随用户点击, 后端 ack 同步时如能匹配就同步
+// 本地激活态: 跟随用户点击，并由后端 ACK 同步
 const activeKey = ref<string>('off')
 
 watch(() => store.lighting.strip_mode, (mode) => {
-  // 后端模式变化时, 仅当当前选中项的 sendId 与新模式不一致才同步
+  // 后端模式变化时，仅当当前选中项与新模式不一致才同步
   const current = stripModes.find((m) => m.key === activeKey.value)
   if (!current || current.sendId !== mode) {
     const match = stripModes.find((m) => m.sendId === mode)
@@ -97,6 +96,7 @@ function selectMode(mode: { key: string; sendId: string }) {
         <button
           class="cp-switch"
           role="switch"
+          aria-label="前大灯开关"
           :aria-checked="headlightOn"
           @click="toggleHeadlight"
         ></button>
@@ -107,6 +107,7 @@ function selectMode(mode: { key: string; sendId: string }) {
         <span class="row-label">亮度</span>
         <input
           type="range" min="10" max="100"
+          aria-label="前大灯亮度"
           :value="brightness" :disabled="!headlightOn"
           @input="onBrightness"
           class="cp-range flex-1"

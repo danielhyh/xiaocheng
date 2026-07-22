@@ -283,3 +283,173 @@ body,
   transform: translateX(16px);
   background: #eafcff;
 }
+
+/* ---- 交互可见性 / 安全区 ---- */
+
+.cp-shell {
+  min-height: 100dvh;
+  isolation: isolate;
+}
+
+button:focus-visible,
+[role="application"]:focus-visible,
+input:focus-visible {
+  outline: 2px solid rgba(52, 224, 255, 0.95);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px rgba(52, 224, 255, 0.18), 0 0 18px rgba(52, 224, 255, 0.45);
+}
+
+.hud-header {
+  padding-left: calc(1.25rem + env(safe-area-inset-left));
+  padding-right: calc(1.25rem + env(safe-area-inset-right));
+}
+
+.move-joystick {
+  left: calc(1.5rem + env(safe-area-inset-left));
+  bottom: calc(1.5rem + env(safe-area-inset-bottom));
+}
+
+.control-cluster {
+  right: calc(0.75rem + env(safe-area-inset-right));
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+
+.floating-actions {
+  right: calc(1.25rem + env(safe-area-inset-right));
+}
+
+.fullscreen-btn {
+  right: calc(1rem + env(safe-area-inset-right));
+  top: calc(3.5rem + env(safe-area-inset-top));
+}
+
+.databar-container {
+  bottom: calc(0.75rem + env(safe-area-inset-bottom));
+}
+
+/* 窄横屏：为左右操控区让出中央信息带，避免遮挡。 */
+@media (max-width: 720px) and (orientation: landscape) {
+  .hud-header {
+    padding-left: calc(0.5rem + env(safe-area-inset-left)) !important;
+    padding-right: calc(0.5rem + env(safe-area-inset-right)) !important;
+  }
+
+  .hud-side--right {
+    width: 205px !important;
+    gap: 0.5rem !important;
+    margin-right: 0 !important;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  .mode-switch-wrapper {
+    width: 190px !important;
+  }
+
+  .databar-container {
+    width: 220px !important;
+    left: 44% !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  .databar-odometer,
+  .databar-odometer-divider {
+    display: none !important;
+  }
+
+  .databar-cell {
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+  }
+
+  .databar-num {
+    margin-left: 3px !important;
+  }
+
+  .databar-gimbal .ml-3 {
+    margin-left: 0.35rem !important;
+  }
+
+  .floating-actions {
+    right: calc(0.6rem + env(safe-area-inset-right));
+    scale: 0.9;
+  }
+}
+
+/* 竖屏会让控制区严重重叠，明确引导用户旋转设备。 */
+@media (orientation: portrait) and (max-width: 900px) {
+  .portrait-guard {
+    position: fixed;
+    inset: 0;
+    z-index: 50000;
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 24px;
+    text-align: center;
+    pointer-events: auto;
+    background:
+      radial-gradient(circle at 50% 45%, rgba(52, 224, 255, 0.16), transparent 34%),
+      repeating-linear-gradient(0deg, rgba(52, 224, 255, 0.035) 0 1px, transparent 1px 4px),
+      #030711;
+    border: 1px solid rgba(52, 224, 255, 0.45);
+  }
+
+  .portrait-phone {
+    position: relative;
+    width: 42px;
+    height: 72px;
+    margin-bottom: 12px;
+    border: 2px solid #34e0ff;
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(52, 224, 255, 0.4), inset 0 0 12px rgba(52, 224, 255, 0.12);
+    animation: phone-rotate 2.4s ease-in-out infinite;
+  }
+
+  .portrait-phone span {
+    position: absolute;
+    left: 50%;
+    bottom: 4px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #34e0ff;
+    transform: translateX(-50%);
+    box-shadow: 0 0 8px #34e0ff;
+  }
+}
+
+@keyframes phone-rotate {
+  0%, 20% { transform: rotate(0deg); }
+  60%, 100% { transform: rotate(90deg); }
+}
+
+@media (pointer: coarse) {
+  .cp-switch {
+    width: 44px;
+    height: 24px;
+  }
+
+  .cp-switch::after {
+    width: 18px;
+    height: 18px;
+  }
+
+  .cp-switch[aria-checked="true"]::after {
+    transform: translateX(20px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -14,7 +14,7 @@
 
 | 层级 | 技术 |
 |---|---|
-| 硬件 | Orange Pi 5 Pro (RK3588S 8核 6TOPS NPU)，L298N 电机驱动，EVE 18650 2S1P 7.4V,18650锂电池3A过充保护模块, LM2596S, HC-SR04超声波模块, ZY-ADS1115, 舵机SG90+云台, IIR520驱动模块, 5v3wLED灯珠*2, PCA9685A, 500万像素OV5640摄像头, 小喇叭扬声器8Ω2w, USB转音频免驱, 可编程RGB灯带,ESP32-C3(独立的设备级电源管理 + 待机唤醒控制器),AMS1117,MOS触发驱动场效应管模块 |
+| 硬件 | 以 `docs/hardware-wiring.md` 为唯一信息源；当前电池为 EVE 18650 **2S2P**。OV13855=前置主摄，OV5640 UVC=后置倒车影像，ADS1115=电池安全监测，ESP32-C3+AMS1117=Phase 15 带外待机/远程开关机 |
 | 固件/驱动 | Python 3，sysfs PWM，wiringOP-Python（已编译） |
 | 后端 | FastAPI + uvicorn，WebSocket，asyncio |
 | 前端 | Vue 3 + TypeScript + Pinia + Vite |
@@ -24,6 +24,8 @@
 ---
 
 ## 核心模块
+
+> 本表状态只表示软件实现/历史验证，不表示 KF301 重接后的当前实物状态；实物状态只看 `docs/hardware-wiring.md`。
 
 | 模块/文件 | 职责 | 状态 |
 |---|---|---|
@@ -35,10 +37,15 @@
 | `app/business/telemetry.py` | `tel.motion` + `tel.sensors` 推送（真实电压 + CPU 温度） | ✅ P2.pre 完成 |
 | `app/drivers/adc/` | ADS1115 I2C ADC 电池电压读取，含 Real/Mock | ✅ P2.pre 完成 |
 | `app/subsystems/sensing.py` | 传感器汇总（真实电压/电量/CPU温度） | ✅ P2.pre 完成 |
+| `app/drivers/camera/` | 当前 OV5640 UVC 单路采集；目标是 OV13855 前视 + OV5640 后视双路 | ♻️ 重接后待板端复验 |
 | `frontend/` | Vue 控制面板：虚拟摇杆、WASD、刹车、电量/状态 HUD | ✅ P2.2 完成 |
 | `app/drivers/audio/` | USB 声卡驱动（aplay/ffplay/edge-tts/amixer），含 Real/Mock | ✅ P9 完成 |
 | `app/subsystems/audio.py` | 音效播放、TTS、鸣笛循环、倒车提示、低压告警 | ✅ P9 完成 |
 | `frontend/src/components/AudioPanel.vue` | 音量滑块 + TTS 输入框 | ✅ P9 完成 |
+| `app/drivers/led/` | 当前仍为 PCA9685 旧实现；目标硬件为大灯自带驱动 SIG→Pin33 | ⚠️ P8 待对齐 |
+| `app/drivers/strip/` | WS2812B 灯带驱动（SPI bitbang），含 Real/Mock | ✅ P8 软件完成 |
+| `app/subsystems/lighting.py` | 灯光业务逻辑（大灯调光、灯带模式、运动联动） | ✅ 软件骨架；硬件待复验 |
+| `frontend/src/components/LightPanel.vue` | 大灯开关 + 亮度滑块 + 灯带模式选择 | ✅ P8 软件完成 |
 
 ---
 
@@ -52,9 +59,9 @@
 
 | 文档 | 内容 |
 |---|---|
-| `docs/roadmap.md` | 开发阶段路线图、当前阶段进度（**唯一维护点**） |
+| `docs/roadmap.md` | 实施顺序、验收项、当前阶段（阶段信息唯一维护点） |
 | `docs/architecture.md` | 六层架构、WebSocket 协议、Mock 模式、并发模型 |
-| `docs/hardware-wiring.md` | 硬件清单总览 + 引脚映射、接线图、电源拓扑、已踩坑 |
+| `docs/hardware-wiring.md` | 硬件型号/角色、目标接线、当前实物状态（物理层唯一信息源） |
 | `docs/decisions.md` | 重大技术决策及理由（ADR） |
 | `docs/known-issues.md` | 已知问题与 workaround |
 | `docs/modules/` | 各模块文档（带 `code` + `last_verified`，供文档看板做新鲜度检测） |

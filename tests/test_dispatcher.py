@@ -5,7 +5,7 @@ os.environ["XIAOCHENG_MOCK"] = "1"
 
 import pytest
 from app.business.dispatcher import Dispatcher
-from app.business.mode_manager import ModeManager
+from app.business.mode_manager import Mode, ModeManager
 from app.subsystems.motion import MotionSubsystem
 
 
@@ -49,6 +49,27 @@ async def test_cmd_brake_temporarily_suppresses_stale_motion():
     state = motion.telemetry
     assert state["speed"] == 0
     assert state["direction"] == "idle"
+    assert state["left_speed"] == 0
+    assert state["right_speed"] == 0
+    motion.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_manual_motion_is_ignored_outside_manual_mode():
+    class TrackModeManager:
+        current = Mode.TRACK
+
+    motion = MotionSubsystem()
+    dispatcher = Dispatcher(motion, TrackModeManager())
+
+    motion.init()
+    await dispatcher.dispatch({
+        "type": "cmd.motion",
+        "payload": {"vx": 0, "vy": 1},
+    })
+
+    state = motion.telemetry
+    assert state["speed"] == 0
     assert state["left_speed"] == 0
     assert state["right_speed"] == 0
     motion.cleanup()

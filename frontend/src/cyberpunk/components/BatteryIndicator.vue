@@ -26,7 +26,7 @@ const color = computed(() => TONE_COLOR[view.value.tone])
 // 格数计算
 const bars = computed(() => {
   const pct = store.sensors.battery_percent
-  if (!Number.isFinite(pct) || pct < 5) return 0
+  if (typeof pct !== 'number' || !Number.isFinite(pct) || pct < 5) return 0
   if (pct < 25) return 1
   if (pct < 50) return 2
   if (pct < 75) return 3
@@ -36,14 +36,14 @@ const bars = computed(() => {
 // 电压显示 (保留1位小数)
 const voltageText = computed(() => {
   const v = store.sensors.battery_voltage
-  if (!Number.isFinite(v) || v <= 0) return '--'
+  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return '--'
   return v.toFixed(1)
 })
 
 // 百分比显示
 const percentText = computed(() => {
   const pct = store.sensors.battery_percent
-  if (!Number.isFinite(pct)) return '--'
+  if (typeof pct !== 'number' || !Number.isFinite(pct)) return '--'
   return Math.round(pct)
 })
 

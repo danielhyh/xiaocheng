@@ -43,6 +43,8 @@ function onUp() {
       class="relative w-[64px] h-[64px] rounded-full
              transition-transform overflow-hidden"
       :class="{ 'scale-95 brightness-125': pressed }"
+      aria-label="紧急刹车，按住持续制动"
+      :aria-pressed="pressed"
       @pointerdown="onDown"
       @pointerup="onUp"
       @pointercancel="onUp"

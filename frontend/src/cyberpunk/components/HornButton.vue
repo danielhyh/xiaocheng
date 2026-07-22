@@ -68,6 +68,8 @@ onBeforeUnmount(() => {
         'scale-95 brightness-125': pressed,
         'ring-2 ring-neon-cyan/80 shadow-[0_0_12px_rgba(52,224,255,0.5)]': pressed || looping,
       }"
+      aria-label="鸣笛，长按持续鸣笛"
+      :aria-pressed="pressed || looping"
       @pointerdown="onDown"
       @pointerup="onUp"
       @pointercancel="onUp"

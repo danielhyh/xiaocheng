@@ -23,12 +23,13 @@ const isAudio = computed(() => props.activePanel === 'audio')
 </script>
 
 <template>
-  <div data-cp-popover="buttons" class="absolute right-5 top-[46%] -translate-y-1/2 z-30
+  <div data-cp-popover="buttons" class="floating-actions absolute right-5 top-[46%] -translate-y-1/2 z-30
               flex flex-col items-center gap-2 select-none">
 
     <!-- 灯光 -->
     <button
       :aria-pressed="isLight"
+      aria-label="打开灯光系统"
       title="灯光系统"
       @click="emit('toggle', 'light')"
       class="fab-img-btn"
@@ -47,6 +48,7 @@ const isAudio = computed(() => props.activePanel === 'audio')
     <!-- 音频 -->
     <button
       :aria-pressed="isAudio"
+      aria-label="打开音频系统"
       title="音响系统"
       @click="emit('toggle', 'audio')"
       class="fab-img-btn"

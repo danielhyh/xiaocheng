@@ -119,8 +119,15 @@ onMounted(() => {
 
   ws.on('event.ack', (payload) => {
     if (!payload) return
-    if (payload.headlight_on !== undefined || payload.strip_mode !== undefined) {
-      store.updateLighting(payload)
+    if (
+      payload.headlight !== undefined || payload.brightness !== undefined ||
+      payload.headlight_on !== undefined || payload.strip_mode !== undefined
+    ) {
+      store.updateLighting({
+        ...payload,
+        ...(payload.headlight !== undefined ? { headlight_on: payload.headlight } : {}),
+        ...(payload.brightness !== undefined ? { headlight_brightness: payload.brightness } : {}),
+      })
     }
     if (payload.nitro !== undefined || payload.active !== undefined) {
       store.updateNitro(payload)
@@ -178,9 +185,17 @@ function onVolumeChange(v: number) {
 
 <template>
   <div
-    class="relative w-full h-full overflow-hidden bg-hull-900"
+    class="cp-shell relative w-full h-full overflow-hidden bg-hull-900"
     @pointerdown="onRootPointerDown"
   >
+    <div class="portrait-guard" role="status" aria-live="polite">
+      <div class="portrait-phone" aria-hidden="true">
+        <span></span>
+      </div>
+      <div class="cp-display text-neon-cyan text-base">请横屏使用控制台</div>
+      <div class="cp-mono text-white/45 text-xs">旋转设备以获得完整操控区域</div>
+    </div>
+
     <!-- 主画面: FPS/分辨率叠加在画面左上角 -->
     <FPVStage :fps="fps" :resolution="resolution" />
     <PanelFrame />
@@ -195,7 +210,7 @@ function onVolumeChange(v: number) {
     <MoveJoystick ref="moveJoyRef" :bus="bus" />
 
     <!-- 右下横排: 云台小摇杆 + BRAKE + HORN，底图铺满 -->
-    <div class="absolute bottom-4 right-3 z-20 flex items-center gap-2 select-none"
+    <div class="control-cluster absolute bottom-4 right-3 z-20 flex items-center gap-2 select-none"
          style="padding: 10px 14px;">
       <!-- 背景底图 -->
       <img
@@ -241,6 +256,7 @@ function onVolumeChange(v: number) {
     <button
       class="fullscreen-btn absolute top-14 right-4 z-30"
       :title="isFullscreen ? '退出全屏' : '全屏'"
+      :aria-label="isFullscreen ? '退出全屏' : '进入全屏'"
       @click="toggleFullscreen"
     >
       <!-- 进入全屏图标 -->
@@ -284,5 +300,9 @@ function onVolumeChange(v: number) {
 }
 .fullscreen-btn:active {
   transform: scale(0.92);
+}
+
+.portrait-guard {
+  display: none;
 }
 </style>

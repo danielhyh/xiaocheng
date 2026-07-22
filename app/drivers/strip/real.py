@@ -56,6 +56,10 @@ class RealStripDriver:
         self._spi = None
         self._segments = config.STRIP_SEGMENTS
 
+    @property
+    def num_leds(self) -> int:
+        return self._num_leds
+
     def init(self) -> None:
         try:
             import spidev

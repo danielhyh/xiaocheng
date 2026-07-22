@@ -11,8 +11,6 @@ business/telemetry.py — 遥测发布器
 
 import asyncio
 import logging
-import os
-import subprocess
 import time
 from typing import Callable, Awaitable
 
@@ -37,8 +35,6 @@ class TelemetryPublisher:
         self._obstacle = None
         self._gimbal = None
         self._nitro = None
-        self._send_fn: Callable[[dict], Awaitable[None]] | None = None
-        self._running = False
 
     def set_obstacle(self, obstacle) -> None:
         """注入避障子系统"""
@@ -52,39 +48,44 @@ class TelemetryPublisher:
         """注入氮气子系统"""
         self._nitro = nitro
 
-    def set_send_fn(self, fn: Callable[[dict], Awaitable[None]]) -> None:
-        """注入 WS 发送函数"""
-        self._send_fn = fn
+    @staticmethod
+    async def _send(
+        send_fn: Callable[[dict], Awaitable[None]],
+        msg: dict,
+    ) -> None:
+        try:
+            await send_fn(msg)
+        except Exception:
+            logger.debug("遥测发送失败，等待连接任务结束", exc_info=True)
 
-    async def _send(self, msg: dict) -> None:
-        if self._send_fn:
-            try:
-                await self._send_fn(msg)
-            except Exception:
-                pass
-
-    async def _publish_motion(self) -> None:
+    async def _publish_motion(
+        self,
+        send_fn: Callable[[dict], Awaitable[None]],
+    ) -> None:
         """推送 tel.motion (高频)"""
-        while self._running:
+        while True:
             payload = self._motion.telemetry
             # 附加氮气状态
             if self._nitro:
                 payload["nitro_active"] = self._nitro.is_active
                 payload["nitro_boost"] = self._nitro.boost_factor
-            await self._send({
+            await self._send(send_fn, {
                 "type": "tel.motion",
                 "ts": time.time(),
                 "payload": payload,
             })
             await asyncio.sleep(config.TELEMETRY_MOTION_INTERVAL)
 
-    async def _publish_sensors(self) -> None:
+    async def _publish_sensors(
+        self,
+        send_fn: Callable[[dict], Awaitable[None]],
+    ) -> None:
         """
         推送 tel.sensors (低频)。
 
         Phase 7 增强: WiFi RSSI, CPU 占用率, WS 延迟。
         """
-        while self._running:
+        while True:
             sensor_data = self._sensing.telemetry
 
             # Phase 7: 增强遥测
@@ -105,7 +106,7 @@ class TelemetryPublisher:
                     "rear_blocked": self._obstacle.rear_blocked,
                 })
 
-            await self._send({
+            await self._send(send_fn, {
                 "type": "tel.sensors",
                 "ts": time.time(),
                 "payload": sensor_data,
@@ -151,13 +152,12 @@ class TelemetryPublisher:
             pass
         return None
 
-    async def run(self) -> None:
-        """启动所有遥测推送任务"""
-        self._running = True
+    async def run(
+        self,
+        send_fn: Callable[[dict], Awaitable[None]],
+    ) -> None:
+        """为一个连接启动独立的遥测推送任务。"""
         await asyncio.gather(
-            self._publish_motion(),
-            self._publish_sensors(),
+            self._publish_motion(send_fn),
+            self._publish_sensors(send_fn),
         )
-
-    def stop(self) -> None:
-        self._running = False
