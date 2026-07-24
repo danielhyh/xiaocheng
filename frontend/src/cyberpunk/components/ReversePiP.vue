@@ -5,11 +5,12 @@
   motion.vy < 0: 自动放大 (≥ 40% 视口宽度)
   右下角手动放大/缩小按钮
   fps/分辨率显示在组件上方
-  背景: rear-view_fixed.png 赛博朋克边框图
+  视频源: 当前后置摄像头 MJPEG /stream/camera
+  背景: rear-view-border.png 赛博朋克边框图
 -->
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onUnmounted, ref } from 'vue'
 import { useCarStore } from '../../stores/carStore'
 import rearViewUrl from '../../assets/cyberpunk/rear-view-border.png'
 
@@ -19,6 +20,39 @@ const props = defineProps<{
 }>()
 
 const store = useCarStore()
+
+const streamUrl = computed(() => {
+  const base = `${location.protocol}//${location.hostname}:${location.port || 8000}`
+  return `${base}/stream/camera`
+})
+
+const imgKey = ref(0)
+const hasError = ref(false)
+const isLoading = ref(true)
+let retryTimer: number | null = null
+
+function onLoad() {
+  isLoading.value = false
+  hasError.value = false
+}
+
+function onError() {
+  isLoading.value = false
+  hasError.value = true
+  if (retryTimer !== null) return
+  retryTimer = window.setTimeout(() => {
+    retryTimer = null
+    hasError.value = false
+    isLoading.value = true
+    imgKey.value++
+  }, 3000)
+}
+
+onUnmounted(() => {
+  if (retryTimer !== null) {
+    window.clearTimeout(retryTimer)
+  }
+})
 
 // 自动放大: 倒车时
 const autoEnlarged = computed(() => (store.motion.vy ?? 0) < 0)
@@ -71,7 +105,34 @@ const resText = computed(() => props.resolution ?? '--')
     </div>
 
     <!-- 内容区域 (留出边框视觉空间) -->
-    <div class="absolute inset-[6%]">
+    <div class="absolute inset-[6%] overflow-hidden bg-black">
+      <!-- 后置摄像头 MJPEG 流 -->
+      <img
+        v-if="!hasError"
+        :key="imgKey"
+        :src="streamUrl"
+        alt="倒车影像"
+        class="absolute inset-0 w-full h-full object-cover select-none"
+        draggable="false"
+        @load="onLoad"
+        @error="onError"
+      />
+
+      <!-- 加载与断线状态 -->
+      <div
+        v-if="isLoading && !hasError"
+        class="absolute inset-0 flex items-center justify-center bg-black/70"
+      >
+        <div class="w-5 h-5 rounded-full border-2 border-[#9ECCFD]/30 border-t-[#9ECCFD] animate-spin"></div>
+      </div>
+      <div
+        v-if="hasError"
+        class="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/85"
+      >
+        <span class="cp-display text-[#9ECCFD] text-[9px] tracking-[0.18em]">NO REAR SIGNAL</span>
+        <span class="cp-mono text-white/40 text-[8px]">3 秒后重试</span>
+      </div>
+
       <!-- 扫描线叠加 -->
       <div class="absolute inset-0 opacity-25 mix-blend-screen pointer-events-none"
            :style="{

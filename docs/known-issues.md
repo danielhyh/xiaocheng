@@ -61,3 +61,8 @@ cd python && sudo python3 setup.py install
 **现象**：克隆方式迁移后系统遗留旧配置、wiringOP 版本等问题，排查困难。
 **Workaround**：换 TF 卡时重新烧录新 OS 镜像，从零配置，比克隆省时间。
 **状态**：fixed
+
+## ISS-10 UVC 摄像头在部分 USB 2.0 口枚举失败
+**现象**：摄像头插入原 USB 2.0 口后被尝试识别为 low-speed 设备，内核连续报告 `device descriptor read/64, error -62`，且不会生成 `/dev/video0`。
+**Workaround**：改接蓝色 USB 3.0 Host 口；实测可作为 480 Mbps UVC 设备稳定枚举，并生成 `/dev/video0`、`/dev/video1` 与 `/dev/media0`。
+**状态**：workaround
