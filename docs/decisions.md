@@ -1,185 +1,192 @@
 ---
-title: 技术决策记录
-scope: 重大技术决策的唯一来源，他处仅以 ADR-XXX 引用，不复制理由
+title: 工程决策与问题记录
+scope: 长期技术取舍（ADR）和可复用问题/Workaround（ISS）的唯一来源
 ---
-# 技术决策记录（Architecture Decision Records）
+# 工程决策与问题记录
 
-> 记录重大技术决策及其理由。AI 理解决策背景后，给出的建议才不会和设计哲学冲突。  
-> 格式：[日期] 决策 | 背景 | 选择理由 | 放弃的方案
-
----
-
-## ADR-001：计算平台选择 Orange Pi 5 Pro
-
-**背景：** 项目需要一块能跑 Python/FastAPI、有 GPIO、能跑本地 NPU 推理的 SBC。
-
-**选择理由：**
-- RK3588S 自带 6TOPS NPU，Phase 5/13 的 YOLO 和本地 LLM 推理可以不依赖云端
-- 40pin 扩展口丰富，能满足全部 Phase 的外设需求
-- 社区活跃，wiringOP 工具链完善
-- 已有 OPi 4 Pro 使用经验，迁移成本低
-
-**放弃的方案：** Raspberry Pi 5（GPIO 够用但无 NPU，本地推理需外接加速棒）；Jetson Nano（成本更高，功耗更大）
+> `ADR-xxx` 记录长期技术取舍，`ISS-xx` 记录仍可能复现的问题与处理方式。
+> 模块行为看代码，阶段进度看 [roadmap.md](roadmap.md)，物理连接看
+> [hardware-wiring.md](hardware-wiring.md)。
 
 ---
 
-## ADR-002：用 sysfs PWM 而不是 wiringOP-Python 的 pwmWrite
+## 技术决策（ADR）
 
-**背景：** 电机调速需要硬件 PWM，有两条路：wiringOP 的 `pwmWrite` API 或内核 sysfs PWM。
+### ADR-001：计算平台选择 Orange Pi 5 Pro
 
-**选择理由：**
-- sysfs 是内核标准接口，行为确定、跨 SoC 兼容
-- wiringOP 的硬件 PWM 在某些 Allwinner 芯片上存在兼容性问题（OPi 4 Pro 上实测过坑）
-- sysfs 方式代码透明，每一步写文件都可以单独调试，适合学习和排障
-- 换板子只需修改 pwmchip 路径，其余代码不动
+**决定：** 主控使用 Orange Pi 5 Pro（RK3588S）。
 
-**放弃的方案：** `pigpio`（RK3588S 不支持）；wiringOP pwmWrite（有坑，可移植性差）
+**理由：** 一块板同时提供 Linux/Python、40-pin GPIO 和 6TOPS NPU，覆盖控制与本地视觉推理。
+
+**代价：** 板级驱动和工具链不如 Raspberry Pi 通用，需要维护 RK3588S 专用配置。
 
 ---
 
-## ADR-003：后端框架选 FastAPI 而不是 Flask
+### ADR-002：用 sysfs PWM 而不是 wiringOP-Python 的 pwmWrite
 
-**背景：** 需要同时支持 HTTP REST + WebSocket + MJPEG 流。
+**决定：** 电机硬件 PWM 通过 Linux sysfs 控制；wiringOP-Python 只负责普通 GPIO。
 
-**选择理由：**
-- FastAPI 原生支持 asyncio，WebSocket 和 MJPEG 流不需要额外插件
-- 类型提示和自动 API 文档对项目维护有帮助
-- 和 asyncio 生态（硬件 IO 的 run_in_executor、定时任务等）配合更自然
+**理由：** sysfs 行为可观察、可单步排查，并已在 RK3588S 真板验证；`pwmWrite` 和 `pigpio` 不可靠或不支持该平台。
 
-**放弃的方案：** Flask + flask-socketio（同步阻塞模型，高频 WS 消息性能差）；aiohttp（生态和工具链不如 FastAPI 成熟）
+**代价：** pwmchip 路径和 overlay 属于板级配置，换 SoC 时必须重新确认。
 
 ---
 
-## ADR-004：WebSocket 使用统一 Envelope 而不是裸消息
+### ADR-003：后端框架选 FastAPI 而不是 Flask
 
-**背景：** 随着功能增加，WS 消息类型会从 2 种增长到 20+。
+**决定：** 后端使用 FastAPI + asyncio。
 
-**选择理由：**
-- `{ "type": "cmd.motion", "ts": ..., "payload": {...} }` 结构让前端可以统一路由，不需要为每种消息写单独解析
-- type 用点号分层（`cmd.*` / `tel.*` / `event.*`），含义清晰
-- 新增功能只加新 type，协议层零改动，兼容旧客户端
+**理由：** 同一应用可承载 HTTP、WebSocket、MJPEG 和后台任务，且类型提示适合维护协议边界。
 
-**放弃的方案：** 不同 endpoint（如 `/ws/motion`、`/ws/telemetry`）——管理成本高，前端需要维护多个 WS 连接
+**代价：** 阻塞硬件调用必须主动隔离，生命周期和任务取消也需要显式管理。
 
 ---
 
-## ADR-005：视频流用独立 MJPEG endpoint 而不是 WebSocket Binary
+### ADR-004：WebSocket 使用统一 Envelope 而不是裸消息
 
-**背景：** Phase 3 需要把摄像头画面传到前端。
+**决定：** WebSocket 使用 `{type, id?, ts?, payload}` envelope；type 命名空间固定为 `cmd.*`、`tel.*`、`event.*`。
 
-**选择理由：**
-- 浏览器 `<img src="...">` 原生支持 MJPEG，零前端代码
-- 视频帧（大量 binary 数据）和 JSON 控制指令共用一个 WS 连接会互相干扰
-- MJPEG 独立连接，即使视频卡顿也不影响控制指令的实时性
+**理由：** 单连接即可统一路由指令、遥测和事件，新增消息不需要新增 endpoint。
 
-**放弃的方案：** WS Binary 帧（干扰控制通道）；WebRTC（低延迟更好，但初期复杂度太高，Phase 3 先用 MJPEG 跑通，后续可替换）
+**代价：** 前后端必须共同维护 payload 契约，并处理未知 type 和版本兼容。
 
 ---
 
-## ADR-006：ADS1115 作为安全必选项（不是可选的遥测功能）
+### ADR-005：视频流用独立 MJPEG endpoint 而不是 WebSocket Binary
 
-**背景：** LM2596S 降压模块需要约 7V 最低输入才能稳定输出 5V，而 OPi 工作需要稳定 5V。
+**决定：** 视频使用独立 MJPEG HTTP endpoint，不进入控制 WebSocket。
 
-**选择理由：**
-- 电池从 8.4V 放电到 7V 时，LM2596S 输出开始不稳定 → OPi 可能无声断电
-- 断电会导致 SD 卡文件系统损坏，数据丢失
-- 没有电压监控时，用户无法感知电池快耗尽，因此电压监控是安全边界，不是仪表盘装饰
-- 目标方案：低压告警阈值设 7.2V（安全余量），强制停车并推送 `event.alert`
+**理由：** 浏览器可直接显示，且视频拥塞不会阻塞 JSON 控制指令。
 
-**放弃的方案：** 不接 ADC，靠"感觉"判断电量——不可接受，存在硬件损坏风险
+**代价：** MJPEG 带宽和延迟高于现代视频协议；远程控制阶段可再评估 WebRTC。
 
 ---
 
-## ADR-007：静态 IP 通过 NetworkManager 配置
+### ADR-006：ADS1115 作为安全必选项（不是可选的遥测功能）
 
-**背景：** 开发板需要固定 IP 才能稳定连接。
+**决定：** ADS1115 电池电压监控属于安全边界，不能作为可选遥测移除。
 
-**选择理由：**
-- OPi 5 Pro 的 Debian/Ubuntu 镜像使用 NetworkManager 管理网络
-- 直接改 `/etc/network/interfaces` 会与 NetworkManager 冲突，导致网络异常
+**理由：** 电池接近 LM2596S 最低输入时 OPi 可能无声断电并损坏文件系统，必须提前告警和停车。
 
-**方式：** `nmcli con mod "eth0" ipv4.addresses 192.168.x.x/24 ipv4.method manual`，或用 `nmtui` 图形界面配置。IP 应选在路由器 DHCP 分配范围之外，避免地址冲突。
+**代价：** 分压倍率和安全阈值需要真板校准；未完成联锁前不能把电量显示视为完整保护。
 
 ---
 
-## ADR-008：Mock 模式作为架构约束而非调试开关
+### ADR-007：静态 IP 通过 NetworkManager 配置
 
-**背景：** 硬件不总是在手边，但需要能持续开发和测试软件逻辑。
+**决定：** 静态 IP 只通过 NetworkManager（`nmcli`/`nmtui`）配置。
 
-**选择理由：**
-- 如果 Mock 只是 `if debug: print()` 这样的零星开关，架构会腐化——真实和 Mock 路径渐渐不同步，Mock 不再可信
-- 把 Real/Mock 抽成同一个 Protocol 的两个实现，强制接口对齐，任何时候 Mock 都能真实反映 Real 的行为契约
-- 前端开发、子系统单测、CI 跑测都不需要真板
+**理由：** 系统镜像由 NetworkManager 管理网络，直接修改 `/etc/network/interfaces` 会产生冲突。
 
-**实现：** 已在电机驱动落地：`real.py` 和 `mock.py` 实现同一 Protocol，由 `config.USE_MOCK` 全局切换。后续 ADC/舵机/灯光沿用该模式。
+**代价：** 网络配置保存在设备系统中而非仓库，重装系统后需要重新配置。
 
 ---
 
-## ADR-009：大灯驱动选 MOS 触发驱动模块，弃用 IRF520
+### ADR-008：Mock 模式作为架构约束而非调试开关
 
-**状态：已由 ADR-011 取代。** 本节保留为历史决策，不再作为当前接线依据。
+**决定：** 每个硬件驱动提供同一 Protocol 下的 Real/Mock 双实现，由 `config.USE_MOCK` 统一选择。
 
-**背景：** Phase 8 需要用 OPi 3.3V GPIO 驱动两颗 3W LED（并联，峰值约 1.2A），之前方案是 IRF520。
+**理由：** PC 开发、前端联调和自动化测试必须经过与真板相同的上层路径。
 
-**选择理由：**
-- IRF520 的 Rds(on) 参数是在 Vgs=10V 下标定的，OPi GPIO 仅 3.3V，远低于其有效栅压范围
-- 3.3V 驱动 IRF520 时处于半导通区：严重发热（结温可能超限）、压降大（>1V）、1.2A 负载下行为不可预测
-- MOS 触发驱动模块（AOD4184 等逻辑电平管 + 栅极驱动）专为 3.3V/5V MCU 设计，Vgs(th) 低、Rds(on) 在低栅压下仍很小，支持 PWM 调光
-- 同一个 Pin 33（PWM15_M2）、同一根信号线，改用 MOS 模块零额外成本
-
-**PWM 调光方案：** Pin 33 → MOS 模块 SIG；LED 正极接电池原始轨（按 LED 额定电压确认限流）；LED 负极接模块 OUT-；模块 GND 接共地星点。
-
-**放弃的方案：** IRF520（非逻辑电平，3.3V 无法有效驱动）；继电器（无法 PWM 调光，有触点寿命限制）
+**代价：** 每次接口变化都要同步维护两套实现，Mock 也必须模拟合理状态而不只是打印日志。
 
 ---
 
-## ADR-010：ESP32-C3 定位为带外电源管理控制器，单独立项
+### ADR-009：大灯使用自带驱动，Pin 33 只提供 PWM 信号
 
-**背景：** 希望在 App 中统一管理多设备（小车、无人机等）的开机/待机/关机，实现深度省电（OPi 完全断电）。
+**决定：** 两颗大灯使用其自带恒流/开关驱动，正负极接电源与共地，SIG 并联接 Pin 33；不再使用 PCA9685、IRF520 或外置 MOS 模块驱动大灯功率回路。
 
-**选择理由：**
-- OPi 跑 Linux + FastAPI，待机功耗数瓦，无法作为"常驻待命"角色
-- ESP32-C3 深度睡眠待机功耗 µA 量级，可长期待命监听唤醒信号
-- AMS1117-3.3 从电池独立给 ESP32 供电，与 OPi 供电轨完全解耦，OPi 断电时 ESP32 仍在线
-- 这是服务器 BMC/iLO "带外管理"模式的家用迷你版，架构清晰
-- ESP32 在软件层面对应一个新的 driver（带 Real/Mock），从而符合六层架构分层原则
+**理由：** 实物已经提供 3.3V 逻辑/PWM 输入；额外功率级没有收益，而 IRF520 在 3.3V 栅压下尤其不安全。
 
-**关键设计约束：**
-- 优雅关机联锁是硬性要求：必须先 UART 通知 OPi 执行 `systemctl poweroff`，等 OPi 回告"文件系统已落盘"后再断高边开关，避免 SD 卡损坏（known-issues 中已记录该风险）
-- "随时秒开机"与"深度省电"之间存在权衡：WiFi 常连的 ESP32 待机约几十 mA，真正极低功耗需要 deep-sleep + 定时轮询，牺牲即时性，需按实际场景选择
-
-**实施节奏：** 单机优先（Phase 15 第一步只做小橙一台），跑通后再扩展多设备 MQTT 层；不与外设布线（Phase 4/6/8）混合实施。
-
-**当前硬件预留边界：**
-- Board-A LM2596S#1 输出侧使用 KF301，布局上保留高边开关插入位
-- AMS1117-3.3、ESP32-C3、高边开关与 Pin16/18 UART 当前均不接线
-- 是否已形成实物焊位/端子，以 `hardware-wiring.md` 的“当前实物基线”为准
-
-**放弃的方案：** OPi 自身实现待机（功耗太高，无法真正省电）；继电器替代高边开关（响应慢、有声音、寿命有限）；把 ESP32 作为信号处理协处理器接入当前 Phase（破坏分层、增加维护复杂度，不是当前必需）
+**代价：** 两颗大灯共用一路亮度控制；现有 PCA9685 大灯代码必须在真板接线前同步到 Pin 33 方案。
 
 ---
 
-## ADR-011：大灯使用自带驱动，SIG 直连 Pin33
+### ADR-010：ESP32-C3 定位为带外电源管理控制器，单独立项
 
-**背景：** 实际采购的 3W 大灯已经带有可接受 3.3V 逻辑/PWM 的驱动输入，不再需要外置 IRF520 或 MOS 触发模块。
+**决定：** ESP32-C3 只承担 OPi 的带外电源管理，并作为独立阶段实施，不兼任当前外设协处理器。
 
-**决定：**
-- 大灯正极接电池原始轨，负极接全车共地，SIG 接 OPi Pin33（PWM15_M2）
-- PCA9685 只服务舵机，不分配大灯通道
-- `app/drivers/led/` 当前 PCA9685 实现是历史软件偏差，Phase 8 必须改为 Pin33 PWM 后才能进行真板验收
+**理由：** ESP32 可在 OPi 完全断电时低功耗待命，并控制高边开关；职责类似简化的 BMC。
 
-**取代：** ADR-009 的外置 MOS 触发模块方案。
+**硬约束：** 必须先通知 OPi 正常关机并等待回告，之后才能切断电源。现有 Pin 16/18、AMS1117 焊位和 KF301 接入点只做预留。
+
+**代价：** 增加常供电源、UART 协议和高边开关；即时唤醒与 deep-sleep 功耗之间仍需取舍。
 
 ---
 
-## ADR-012：双摄角色固定为 OV13855 前视、OV5640 后视
+## 问题与 Workaround（ISS）
 
-**背景：** 旧文档把已经完成单路 UVC 软件的 OV5640 同时描述为“车顶 FPV 主摄”和“后置倒车摄像头”，造成实施顺序与安装位置混乱。
+> 只保留可能再次踩到、仍需处理或已被其他文档引用的问题。状态取值：
+> `open` / `workaround` / `fixed`。
 
-**决定：**
-- OV13855：前置主摄，服务 FPV、视觉识别和后续追踪
-- OV5640 UVC：后置摄像头，服务倒车影像与后视
-- Phase 3 先复验现有 OV5640 UVC 单路链路，再验证 OV13855 MIPI/ISP，最后拆分前视/后视流
-- `/dev/video0` 和 `/stream/camera` 都只作为单摄过渡约定；双摄落地后使用显式设备绑定和明确的前/后流接口
+### ISS-01 PWM 极性反转导致速度控制反向
 
-**放弃的方案：** 继续把 OV5640 同时当作前置 FPV 主摄和后置倒车摄像头。
+RK3588S 实测 PWM 极性与默认预期相反；驱动固定设置 `PWM_INVERTED = True`（`polarity = inversed`）。
+
+**状态**：fixed
+
+### ISS-02 ENB 跳线帽导致 PWM 失效
+
+L298N 的 ENA/ENB 跳线帽会把使能脚固定到 5V，接 PWM 前必须拔掉，否则电机始终全速。
+
+**状态**：fixed
+
+### ISS-03 pwmchip 路径从 OPi 4 Pro 迁移到 5 Pro 需修改
+
+OPi 5 Pro 使用 PWM13_M2 → `pwmchip2`、PWM14_M2 → `pwmchip3`；不能沿用其他 SoC 的 sysfs 路径。
+
+**状态**：fixed
+
+### ISS-04 HC-SR04 Echo 电平取决于实物版本
+
+本项目的 RCWL-9200 宽压版使用 3.3V 供电，Echo 可直连；若更换为 5V 老款，必须增加分压或电平转换，不能直接接 OPi。
+
+**状态**：fixed
+
+### ISS-05 LM2596S 低压死区仍缺完整联锁
+
+ADS1115 采集和电量分级已经存在，但真板校准、低压自动停车与安全关机尚未形成完整闭环；闭环完成前仍可能在约 7V 附近无声掉电。
+
+**状态**：open
+
+### ISS-06 前端持续运动指令在网络抖动时可能误触发停车
+
+运动指令约每 100ms 重发，而 Watchdog 500ms 超时；Wi-Fi 抖动可能触发非预期停车。需通过真车网络测试决定增大阈值还是拆分独立心跳，不能凭感觉放宽安全边界。
+
+**状态**：open
+
+### ISS-07 多客户端并发控制策略未定
+
+当前仅按局域网单控制者使用。多个客户端不仅会让 `cmd.motion` 互相覆盖：遥测发送回调与运行状态也是全局单实例，一个连接可能覆盖另一个，任一断开还会停止全局遥测。跨网开放前必须改为每连接独立生命周期，并实现控制者租约或其他明确仲裁策略。
+
+**状态**：open
+
+### ISS-08 wiringOP-Python 无法通过 pip 安装
+
+PyPI 上的 `wiringpi` 不支持 OPi 5 Pro；必须使用 Orange Pi 官方 `wiringOP` 仓库的 `next` 分支并从源码编译 Python 绑定。
+
+**状态**：workaround
+
+### ISS-09 从旧 TF 卡克隆到新卡遗留问题多
+
+克隆旧 TF 卡会携带网络、驱动和 wiringOP 历史配置；迁移时重新烧录系统并按项目步骤配置。
+
+**状态**：fixed
+
+### ISS-10 UVC 摄像头在部分 USB 2.0 口枚举失败
+
+部分 USB 2.0 口会报 `device descriptor read/64, error -62` 且不生成视频设备；改接蓝色 USB 3.0 Host 口后可稳定以 480 Mbps UVC 枚举。
+
+**状态**：workaround
+
+### ISS-11 Real 模式会无条件初始化未接外设
+
+`main.py` 当前会初始化并启动灯光、云台、超声波等计划外设；实物未接或仍使用旧引脚时，可能启动失败或误操作冲突 GPIO。完成 `HW-01`、`HW-02` 前，真板运行必须显式避开未验收外设。
+
+**状态**：open
+
+### ISS-12 自主模式缺少统一控制权仲裁
+
+当前 dispatcher 没有统一管理 manual、avoid、track、voice、nav 的所有权、抢占和模式切换；后续能力若各自直接写入 motion，可能相互覆盖或绕开安全停车。完成 roadmap 的 `CTRL-01`、`CTRL-02` 前，只允许单一人工控制链实际驱动车体。
+
+**状态**：open

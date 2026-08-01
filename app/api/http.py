@@ -24,6 +24,7 @@ async def get_status():
     return {
         "mode": _mode_manager.current.value if _mode_manager else "unknown",
         "mock": config.USE_MOCK,
+        "subsystems": dict(config.SUBSYSTEMS_ENABLED),
         "version": "0.3.0",
         "phase": "10",
     }
@@ -35,6 +36,7 @@ async def get_config():
     return {
         "ws_path": "/ws/control",
         "stream_path": "/stream/camera",
+        "subsystems": dict(config.SUBSYSTEMS_ENABLED),
         "telemetry_intervals": {
             "motion": config.TELEMETRY_MOTION_INTERVAL,
             "sensors": config.TELEMETRY_SENSORS_INTERVAL,

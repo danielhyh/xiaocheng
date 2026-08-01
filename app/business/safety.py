@@ -9,13 +9,18 @@ business/safety.py — 安全看门狗
   - 断连时停止鸣笛/灯效/云台/氮气
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import time
+from typing import TYPE_CHECKING
 
-from app.subsystems.motion import MotionSubsystem
 from app.business.mode_manager import ModeManager
 from app import config
+
+if TYPE_CHECKING:
+    from app.subsystems.motion import MotionSubsystem
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +33,7 @@ class SafetyWatchdog:
     如果超过 WS_DISCONNECT_TIMEOUT 没收到消息,自动停车。
     """
 
-    def __init__(self, motion: MotionSubsystem, mode_manager: ModeManager):
+    def __init__(self, motion: MotionSubsystem | None, mode_manager: ModeManager):
         self._motion = motion
         self._mode = mode_manager
         self._audio = None
@@ -69,12 +74,14 @@ class SafetyWatchdog:
     def _on_front_blocked(self) -> None:
         """前方障碍物回调: 停车"""
         logger.warning("安全: 前方障碍物,自动停车")
-        self._motion.stop()
+        if self._motion:
+            self._motion.stop()
 
     def _on_rear_blocked(self) -> None:
         """后方障碍物回调: 停车"""
         logger.warning("安全: 后方障碍物,倒车自动刹停")
-        self._motion.brake()
+        if self._motion:
+            self._motion.brake()
 
     def touch(self) -> None:
         """喂狗: 收到任何 WS 消息时调用"""
@@ -101,7 +108,8 @@ class SafetyWatchdog:
     def _on_heartbeat_timeout(self, reason: str) -> None:
         """心跳超时: 只停车"""
         logger.warning(f"安全停车: {reason}")
-        self._motion.stop()
+        if self._motion:
+            self._motion.stop()
         self._mode.force_manual(reason)
 
     async def run(self) -> None:

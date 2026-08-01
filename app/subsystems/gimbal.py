@@ -105,8 +105,8 @@ class GimbalSubsystem:
 
     def _apply(self) -> None:
         """将当前角度写入舵机"""
-        self._driver.set_angle(config.SERVO_PAN_CHANNEL, self._pan)
-        self._driver.set_angle(config.SERVO_TILT_CHANNEL, self._tilt)
+        self._driver.set_angle(config.SERVO_FRONT_PAN_CHANNEL, self._pan)
+        self._driver.set_angle(config.SERVO_FRONT_TILT_CHANNEL, self._tilt)
 
     async def _smooth_move(self, target_pan: float, target_tilt: float,
                            duration: float = 0.5) -> None:

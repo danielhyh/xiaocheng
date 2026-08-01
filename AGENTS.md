@@ -14,7 +14,7 @@
 
 | 层级 | 技术 |
 |---|---|
-| 硬件 | 以 `docs/hardware-wiring.md` 为唯一信息源；当前电池为 EVE 18650 **2S2P**。OV13855=前置主摄，OV5640 UVC=后置倒车影像，ADS1115=电池安全监测，ESP32-C3+AMS1117=Phase 15 带外待机/远程开关机 |
+| 硬件 | Orange Pi 5 Pro（RK3588S，6 TOPS NPU）+ 四驱底盘；清单、接线与当前装配见 [hardware-wiring.md](docs/hardware-wiring.md) |
 | 固件/驱动 | Python 3，sysfs PWM，wiringOP-Python（已编译） |
 | 后端 | FastAPI + uvicorn，WebSocket，asyncio |
 | 前端 | Vue 3 + TypeScript + Pinia + Vite |
@@ -25,27 +25,26 @@
 
 ## 核心模块
 
-> 本表状态只表示软件实现/历史验证，不表示 KF301 重接后的当前实物状态；实物状态只看 `docs/hardware-wiring.md`。
+> 此表只描述代码能力；当前实物是否接通及本轮验收状态以 `docs/hardware-wiring.md` 和 `docs/roadmap.md` 为准。
 
-| 模块/文件 | 职责 | 状态 |
+| 模块/文件 | 职责 | 代码状态 |
 |---|---|---|
-| `app/drivers/motor/` | sysfs PWM + GPIO 电机驱动，含 Real/Mock 双实现 | ✅ P2.1 完成 |
-| `app/subsystems/motion.py` | 前后左右差速，业务语义层 | ✅ P2.1 完成 |
+| `app/drivers/motor/` | sysfs PWM + GPIO 电机驱动，含 Real/Mock 双实现 | ✅ 已实现；实物待重接验收 |
+| `app/subsystems/motion.py` | 前后左右差速，业务语义层 | ✅ 已实现；实物待重接验收 |
 | `app/api/websocket.py` | WS envelope 解析 + 路由 | ✅ P2.2 完成 |
 | `app/business/dispatcher.py` | 指令分发到子系统 | ✅ P2.2 完成 |
 | `app/business/safety.py` | Watchdog：WS 断连/超时 500ms 停车 | ✅ P2.2 完成 |
-| `app/business/telemetry.py` | `tel.motion` + `tel.sensors` 推送（真实电压 + CPU 温度） | ✅ P2.pre 完成 |
-| `app/drivers/adc/` | ADS1115 I2C ADC 电池电压读取，含 Real/Mock | ✅ P2.pre 完成 |
-| `app/subsystems/sensing.py` | 传感器汇总（真实电压/电量/CPU温度） | ✅ P2.pre 完成 |
-| `app/drivers/camera/` | 当前 OV5640 UVC 单路采集；目标是 OV13855 前视 + OV5640 后视双路 | ♻️ 重接后待板端复验 |
+| `app/business/telemetry.py` | `tel.motion` + `tel.sensors` 推送（真实电压 + CPU 温度） | 🚧 已实现；低压闭环待验收 |
+| `app/drivers/adc/` | ADS1115 I2C ADC 电池电压读取，含 Real/Mock | ✅ 已实现；实物待重接验收 |
+| `app/subsystems/sensing.py` | 传感器汇总（真实电压/电量/CPU温度） | 🚧 已实现；低压闭环待验收 |
 | `frontend/` | Vue 控制面板：虚拟摇杆、WASD、刹车、电量/状态 HUD | ✅ P2.2 完成 |
-| `app/drivers/audio/` | USB 声卡驱动（aplay/ffplay/edge-tts/amixer），含 Real/Mock | ✅ P9 完成 |
-| `app/subsystems/audio.py` | 音效播放、TTS、鸣笛循环、倒车提示、低压告警 | ✅ P9 完成 |
+| `app/drivers/audio/` | USB 声卡驱动（aplay/ffplay/edge-tts/amixer），含 Real/Mock | ✅ 已实现；实物待重接验收 |
+| `app/subsystems/audio.py` | 音效播放、TTS、鸣笛循环、倒车提示、低压告警 | ✅ 已实现；实物待重接验收 |
 | `frontend/src/components/AudioPanel.vue` | 音量滑块 + TTS 输入框 | ✅ P9 完成 |
-| `app/drivers/led/` | 当前仍为 PCA9685 旧实现；目标硬件为大灯自带驱动 SIG→Pin33 | ⚠️ P8 待对齐 |
-| `app/drivers/strip/` | WS2812B 灯带驱动（SPI bitbang），含 Real/Mock | ✅ P8 软件完成 |
-| `app/subsystems/lighting.py` | 灯光业务逻辑（大灯调光、灯带模式、运动联动） | ✅ 软件骨架；硬件待复验 |
-| `frontend/src/components/LightPanel.vue` | 大灯开关 + 亮度滑块 + 灯带模式选择 | ✅ P8 软件完成 |
+| `app/drivers/led/` | 前大灯 Real/Mock；当前仍是旧 PCA9685 实现，待同步为 Pin 33 自带驱动方案 | 🚧 P8 |
+| `app/drivers/strip/` | WS2812B 灯带 SPI/spidev Real/Mock | 🚧 软件完成，真板链路待验 |
+| `app/subsystems/lighting.py` | 大灯/灯带模式及刹车、倒车等 motion 联动 | 🚧 软件完成，联合验收待做 |
+| `frontend/src/components/LightPanel.vue` | 大灯开关 + 亮度滑块 + 灯带模式选择 | ✅ P8 完成 |
 
 ---
 
@@ -59,13 +58,14 @@
 
 | 文档 | 内容 |
 |---|---|
-| `docs/roadmap.md` | 实施顺序、验收项、当前阶段（阶段信息唯一维护点） |
-| `docs/architecture.md` | 六层架构、WebSocket 协议、Mock 模式、并发模型 |
-| `docs/hardware-wiring.md` | 硬件型号/角色、目标接线、当前实物状态（物理层唯一信息源） |
-| `docs/decisions.md` | 重大技术决策及理由（ADR） |
-| `docs/known-issues.md` | 已知问题与 workaround |
-| `docs/modules/` | 各模块文档（带 `code` + `last_verified`，供文档看板做新鲜度检测） |
-| `archive/` | 归档的历史知识库（已移出 docs/，不参与文档看板扫描） |
+| `docs/roadmap.md` | 阶段状态、任务依赖、可并行工作与当前主线（**唯一维护点**） |
+| `docs/architecture.md` | 稳定分层边界、传输通道、Mock 与并发约束 |
+| `docs/hardware-wiring.md` | 实物清单、电源拓扑、引脚和板上连接的唯一来源 |
+| `docs/decisions.md` | 技术决策（ADR）与已知问题/workaround（ISS）的唯一来源 |
+| `docs/modules/` | 模块级概要，按需查阅 |
+| `archive/` | 归档的历史资料 |
+
+> 本项目不再维护 `docs/known-issues.md`；新问题以 `ISS-xx` 追加到 `docs/decisions.md`。
 
 ---
 

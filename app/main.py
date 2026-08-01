@@ -18,14 +18,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app import config
-from app.subsystems.motion import MotionSubsystem
-from app.subsystems.sensing import SensingSubsystem
-from app.subsystems.vision import VisionSubsystem
-from app.subsystems.audio import AudioSubsystem
-from app.subsystems.lighting import LightingSubsystem
-from app.subsystems.gimbal import GimbalSubsystem
-from app.subsystems.obstacle import ObstacleSubsystem
-from app.subsystems.nitro import NitroSubsystem
 from app.business.mode_manager import ModeManager
 from app.business.dispatcher import Dispatcher
 from app.business.safety import SafetyWatchdog
@@ -47,14 +39,53 @@ logger = logging.getLogger(__name__)
 # ============================================================
 #  全局组件
 # ============================================================
-motion = MotionSubsystem()
-sensing = SensingSubsystem()
-vision = VisionSubsystem()
-audio = AudioSubsystem()
-lighting = LightingSubsystem()
-gimbal = GimbalSubsystem()
-obstacle = ObstacleSubsystem()
-nitro = NitroSubsystem()
+if config.ENABLE_MOTION:
+    from app.subsystems.motion import MotionSubsystem
+    motion = MotionSubsystem()
+else:
+    motion = None
+
+if config.ENABLE_SENSING:
+    from app.subsystems.sensing import SensingSubsystem
+    sensing = SensingSubsystem()
+else:
+    sensing = None
+
+if config.ENABLE_VISION:
+    from app.subsystems.vision import VisionSubsystem
+    vision = VisionSubsystem()
+else:
+    vision = None
+
+if config.ENABLE_AUDIO:
+    from app.subsystems.audio import AudioSubsystem
+    audio = AudioSubsystem()
+else:
+    audio = None
+
+if config.ENABLE_LIGHTING:
+    from app.subsystems.lighting import LightingSubsystem
+    lighting = LightingSubsystem()
+else:
+    lighting = None
+
+if config.ENABLE_GIMBAL:
+    from app.subsystems.gimbal import GimbalSubsystem
+    gimbal = GimbalSubsystem()
+else:
+    gimbal = None
+
+if config.ENABLE_OBSTACLE:
+    from app.subsystems.obstacle import ObstacleSubsystem
+    obstacle = ObstacleSubsystem()
+else:
+    obstacle = None
+
+if config.SUBSYSTEMS_ENABLED["nitro"]:
+    from app.subsystems.nitro import NitroSubsystem
+    nitro = NitroSubsystem()
+else:
+    nitro = None
 mode_manager = ModeManager()
 dispatcher = Dispatcher(
     motion, mode_manager,
@@ -73,15 +104,27 @@ async def lifespan(app: FastAPI):
     # --- 启动 ---
     logger.info("=" * 50)
     logger.info(f"  小橙 启动中  |  Mock: {config.USE_MOCK}")
+    logger.info(
+        "  已启用子系统: %s",
+        ", ".join(
+            name for name, enabled in config.SUBSYSTEMS_ENABLED.items() if enabled
+        ) or "none",
+    )
     logger.info("=" * 50)
 
-    motion.init()
-    sensing.init()
-    vision.init()
-    audio.init()
-    lighting.init()
-    gimbal.init()
-    obstacle.init()
+    components = (
+        ("motion", motion),
+        ("sensing", sensing),
+        ("vision", vision),
+        ("audio", audio),
+        ("lighting", lighting),
+        ("gimbal", gimbal),
+        ("obstacle", obstacle),
+    )
+    for name, component in components:
+        if component is not None:
+            logger.info("初始化子系统: %s", name)
+            component.init()
 
     # 注入依赖到 API 层
     ws_api.init(dispatcher, safety, telemetry)
@@ -101,16 +144,19 @@ async def lifespan(app: FastAPI):
     telemetry.set_nitro(nitro)
 
     # 注入子系统到氮气
-    nitro.set_dependencies(motion=motion, lighting=lighting, audio=audio)
+    if nitro:
+        nitro.set_dependencies(motion=motion, lighting=lighting, audio=audio)
 
     # 启动后台任务
     safety_task = asyncio.create_task(safety.run())
 
     # 启动避障扫描
-    obstacle.start_scanning()
+    if obstacle:
+        obstacle.start_scanning()
 
     # 播放开机音效
-    asyncio.create_task(audio.play_startup())
+    if audio:
+        asyncio.create_task(audio.play_startup())
 
     logger.info("小橙 就绪")
     yield
@@ -119,14 +165,11 @@ async def lifespan(app: FastAPI):
     logger.info("小橙 关闭中...")
     safety.stop()
     safety_task.cancel()
-    nitro.cleanup()
-    obstacle.cleanup()
-    gimbal.cleanup()
-    audio.cleanup()
-    lighting.cleanup()
-    vision.cleanup()
-    sensing.cleanup()
-    motion.cleanup()
+    if nitro:
+        nitro.cleanup()
+    for _name, component in reversed(components):
+        if component is not None:
+            component.cleanup()
     logger.info("小橙 已关闭")
 
 

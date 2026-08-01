@@ -10,7 +10,8 @@ drivers/ultrasonic/real.py — HC-SR04 超声波真实驱动
   3. 计时 Echo 高电平持续时间
   4. 距离 = 时间 × 声速(343m/s) / 2
 
-注意: Echo 引脚需要 5V→3.3V 分压 (2KΩ+1KΩ)。
+注意: 本项目 RCWL-9200 版模块使用 3.3V 供电，Echo 可直连；
+若更换 5V 老款必须恢复分压或电平转换。
 """
 
 import time

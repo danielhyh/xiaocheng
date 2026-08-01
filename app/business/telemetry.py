@@ -9,14 +9,18 @@ business/telemetry.py — 遥测发布器
   - tel.obstacle: 避障数据 (中频)
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import time
-from typing import Callable, Awaitable
+from typing import Callable, Awaitable, TYPE_CHECKING
 
-from app.subsystems.motion import MotionSubsystem
-from app.subsystems.sensing import SensingSubsystem
 from app import config
+
+if TYPE_CHECKING:
+    from app.subsystems.motion import MotionSubsystem
+    from app.subsystems.sensing import SensingSubsystem
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +33,11 @@ class TelemetryPublisher:
     send_fn 是 WS 发送回调,由 API 层注入。
     """
 
-    def __init__(self, motion: MotionSubsystem, sensing: SensingSubsystem):
+    def __init__(
+        self,
+        motion: MotionSubsystem | None,
+        sensing: SensingSubsystem | None,
+    ):
         self._motion = motion
         self._sensing = sensing
         self._obstacle = None
@@ -64,7 +72,18 @@ class TelemetryPublisher:
     ) -> None:
         """推送 tel.motion (高频)"""
         while True:
-            payload = self._motion.telemetry
+            if self._motion:
+                payload = {"available": True, **self._motion.telemetry}
+            else:
+                payload = {
+                    "available": False,
+                    "vx": 0,
+                    "vy": 0,
+                    "speed": 0,
+                    "direction": "unavailable",
+                    "left_speed": 0,
+                    "right_speed": 0,
+                }
             # 附加氮气状态
             if self._nitro:
                 payload["nitro_active"] = self._nitro.is_active
@@ -86,7 +105,16 @@ class TelemetryPublisher:
         Phase 7 增强: WiFi RSSI, CPU 占用率, WS 延迟。
         """
         while True:
-            sensor_data = self._sensing.telemetry
+            if self._sensing:
+                sensor_data = {"available": True, **self._sensing.telemetry}
+            else:
+                sensor_data = {
+                    "available": False,
+                    "battery_voltage": None,
+                    "battery_percent": None,
+                    "battery_level": "unknown",
+                    "cpu_temp": None,
+                }
 
             # Phase 7: 增强遥测
             sensor_data["wifi_rssi"] = self._read_wifi_rssi()

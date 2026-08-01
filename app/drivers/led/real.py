@@ -54,6 +54,11 @@ class RealLedDriver:
         self._right_ch = config.LED_RIGHT_CHANNEL
 
     def init(self) -> None:
+        if self._left_ch is None or self._right_ch is None:
+            raise RuntimeError(
+                "旧 PCA9685 大灯驱动已禁用；完成 P8-01 Pin 33 sysfs PWM "
+                "迁移前请保持 XIAOCHENG_ENABLE_LIGHTING=0"
+            )
         self._fd = os.open(f"/dev/i2c-{self._bus}", os.O_RDWR)
         fcntl.ioctl(self._fd, I2C_SLAVE, self._addr)
 

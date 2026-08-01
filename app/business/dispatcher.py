@@ -5,18 +5,22 @@ business/dispatcher.py — 指令分发器
 新增功能只需在 _HANDLERS 注册新 type,核心不变。
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import time
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-from app.subsystems.motion import MotionSubsystem
-from app.subsystems.audio import AudioSubsystem
-from app.subsystems.lighting import LightingSubsystem
-from app.subsystems.gimbal import GimbalSubsystem
-from app.subsystems.obstacle import ObstacleSubsystem
-from app.subsystems.nitro import NitroSubsystem
 from app.business.mode_manager import ModeManager, Mode
+
+if TYPE_CHECKING:
+    from app.subsystems.motion import MotionSubsystem
+    from app.subsystems.audio import AudioSubsystem
+    from app.subsystems.lighting import LightingSubsystem
+    from app.subsystems.gimbal import GimbalSubsystem
+    from app.subsystems.obstacle import ObstacleSubsystem
+    from app.subsystems.nitro import NitroSubsystem
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +37,7 @@ class Dispatcher:
     3. handler 调用对应子系统
     """
 
-    def __init__(self, motion: MotionSubsystem, mode_manager: ModeManager,
+    def __init__(self, motion: MotionSubsystem | None, mode_manager: ModeManager,
                  audio: AudioSubsystem | None = None,
                  lighting: LightingSubsystem | None = None,
                  gimbal: GimbalSubsystem | None = None,
@@ -100,8 +104,12 @@ class Dispatcher:
             }
         return None
 
-    def _handle_motion(self, payload: dict) -> None:
+    def _handle_motion(self, payload: dict) -> dict | None:
         """处理 cmd.motion: { vx, vy }"""
+        if self._motion is None:
+            logger.warning("运动子系统未启用")
+            return {"error": "motion not available"}
+
         if self._mode.current != Mode.MANUAL:
             logger.debug("忽略非手动模式下的手动运动指令")
             return
@@ -148,9 +156,14 @@ class Dispatcher:
         # 倒车状态通知避障子系统
         if self._obstacle:
             self._obstacle.set_reversing(is_reversing)
+        return None
 
     def _handle_brake(self, payload: dict) -> dict:
         """处理 cmd.brake: 立即制动并清零运动状态。"""
+        if self._motion is None:
+            logger.warning("运动子系统未启用")
+            return {"error": "motion not available"}
+
         self._brake_until = time.monotonic() + BRAKE_SUPPRESS_SECONDS
         self._motion.brake()
 

@@ -2,7 +2,7 @@
 drivers/servo/real.py — PCA9685 舵机真实驱动
 
 通过 PCA9685 I2C PWM 控制 SG90 舵机。
-与前大灯共用同一块 PCA9685 (地址 0x40, I2C1_M4)。
+PCA9685 地址 0x40，挂在 I2C1_M4；大灯不再占用其通道。
 
 SG90 舵机参数:
   - PWM 频率: 50Hz (周期 20ms)
@@ -48,7 +48,7 @@ class RealServoDriver:
     """
     PCA9685 舵机驱动。
 
-    使用原始 I2C 操作,与 LedDriver 共用 PCA9685 硬件。
+    使用原始 I2C 操作控制 PCA9685。
     注意: 初始化会将 PCA9685 频率改为 50Hz (舵机需要)。
     """
 
@@ -74,13 +74,17 @@ class RealServoDriver:
         self._write_reg(_MODE2, mode2 | _OUTDRV)
 
         # 舵机回中
-        for ch in (config.SERVO_PAN_CHANNEL, config.SERVO_TILT_CHANNEL):
+        for ch in (
+            config.SERVO_FRONT_PAN_CHANNEL,
+            config.SERVO_FRONT_TILT_CHANNEL,
+        ):
             self.set_angle(ch, 90)
 
         logger.info(
             f"RealServoDriver 初始化完成 "
             f"(bus={self._bus}, addr=0x{self._addr:02x}, "
-            f"pan=ch{config.SERVO_PAN_CHANNEL}, tilt=ch{config.SERVO_TILT_CHANNEL})"
+            f"pan=ch{config.SERVO_FRONT_PAN_CHANNEL}, "
+            f"tilt=ch{config.SERVO_FRONT_TILT_CHANNEL})"
         )
 
     def _write_reg(self, reg: int, value: int) -> None:
@@ -124,11 +128,17 @@ class RealServoDriver:
     def cleanup(self) -> None:
         if self._fd is not None:
             # 回中
-            for ch in (config.SERVO_PAN_CHANNEL, config.SERVO_TILT_CHANNEL):
+            for ch in (
+                config.SERVO_FRONT_PAN_CHANNEL,
+                config.SERVO_FRONT_TILT_CHANNEL,
+            ):
                 self.set_angle(ch, 90)
             time.sleep(0.3)
             # 关闭 PWM 输出 (避免舵机抖动)
-            for ch in (config.SERVO_PAN_CHANNEL, config.SERVO_TILT_CHANNEL):
+            for ch in (
+                config.SERVO_FRONT_PAN_CHANNEL,
+                config.SERVO_FRONT_TILT_CHANNEL,
+            ):
                 self._set_pwm(ch, 0, 4096)
             os.close(self._fd)
             self._fd = None

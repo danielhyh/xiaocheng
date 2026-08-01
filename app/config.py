@@ -12,6 +12,45 @@ import os
 # ============================================================
 USE_MOCK = os.getenv("XIAOCHENG_MOCK", "0") == "1"
 
+
+def _env_enabled(name: str, *, real_default: bool = False) -> bool:
+    """读取外设启用开关；Mock 默认全开，真板按安全默认值启动。"""
+    raw = os.getenv(name)
+    if raw is None:
+        return True if USE_MOCK else real_default
+
+    normalized = raw.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(
+        f"{name}={raw!r} 无效；请使用 1/0、true/false、yes/no 或 on/off"
+    )
+
+
+# 真板默认只启用当前已接的摄像头。输出型硬件和待重接传感器必须显式开启，
+# 避免未验收外设在应用 import/startup 阶段访问 GPIO、I2C、SPI 或声卡。
+ENABLE_MOTION = _env_enabled("XIAOCHENG_ENABLE_MOTION")
+ENABLE_SENSING = _env_enabled("XIAOCHENG_ENABLE_SENSING")
+ENABLE_VISION = _env_enabled("XIAOCHENG_ENABLE_VISION", real_default=True)
+ENABLE_AUDIO = _env_enabled("XIAOCHENG_ENABLE_AUDIO")
+ENABLE_LIGHTING = _env_enabled("XIAOCHENG_ENABLE_LIGHTING")
+ENABLE_GIMBAL = _env_enabled("XIAOCHENG_ENABLE_GIMBAL")
+ENABLE_OBSTACLE = _env_enabled("XIAOCHENG_ENABLE_OBSTACLE")
+ENABLE_NITRO = _env_enabled("XIAOCHENG_ENABLE_NITRO")
+
+SUBSYSTEMS_ENABLED: dict[str, bool] = {
+    "motion": ENABLE_MOTION,
+    "sensing": ENABLE_SENSING,
+    "vision": ENABLE_VISION,
+    "audio": ENABLE_AUDIO,
+    "lighting": ENABLE_LIGHTING,
+    "gimbal": ENABLE_GIMBAL,
+    "obstacle": ENABLE_OBSTACLE,
+    "nitro": ENABLE_NITRO and ENABLE_MOTION,
+}
+
 # ============================================================
 #  电机 (L298N) — Phase 2
 # ============================================================
@@ -70,15 +109,18 @@ BATTERY_PERCENT_DROP_RATE = 2     # 百分比每秒最大下降速率 (%/s)
 BATTERY_PERCENT_RISE_RATE = 0.5   # 百分比每秒最大上升速率 (%/s)
 
 # ============================================================
-#  摄像头 (OV5640) — Phase 3
+#  摄像头 (前置 OV13855 MIPI / 后置 OV5640 USB)
 # ============================================================
-CAMERA_DEVICE = int(os.getenv("XIAOCHENG_CAMERA", "0"))  # /dev/video0
+_camera_device = os.getenv("XIAOCHENG_CAMERA", "auto")
+CAMERA_DEVICE: int | str = (
+    int(_camera_device) if _camera_device.isdecimal() else _camera_device
+)
 CAMERA_WIDTH = 1280
 CAMERA_HEIGHT = 720
-CAMERA_FPS = 30                   # 采集帧率 (OV5640 1280x720 MJPG 实测上限约 12.6fps)
+CAMERA_FPS = 30                   # OV13855 经 RKISP 输出约 15fps；USB 摄像头按自身能力回退
 CAMERA_JPEG_QUALITY = 80          # JPEG 压缩质量 (0-100, 越高越清晰但带宽越大)
 CAMERA_STREAM_FPS = 30            # MJPEG 流输出帧率 (匹配采集帧率)
-CAMERA_USE_MJPG = True            # 使用 MJPG 采集格式 (摄像头硬件压缩,大幅降低 CPU 和带宽)
+CAMERA_USE_MJPG = True            # USB 摄像头优先 MJPG；MIPI RKISP 节点自动改用 NV12
 
 # ============================================================
 #  音频 (USB 声卡) — Phase 9
@@ -93,11 +135,17 @@ AUDIO_ALERT_INTERVAL = 10.0           # 低电量告警音循环间隔 (秒)
 AUDIO_ALERT_VOLTAGE = 7.2             # 低电量告警阈值 (V),可调
 
 # ============================================================
-#  前大灯 (PCA9685 + IRF520) — Phase 8
+#  前大灯 (Pin 33 / PWM15_M2, 自带驱动) — Phase 8
 # ============================================================
 PCA9685_ADDR = 0x40               # PCA9685 I2C 地址 (与 ADS1115 共用 I2C1_M4)
-LED_LEFT_CHANNEL = 0              # PCA9685 通道: 左大灯
-LED_RIGHT_CHANNEL = 1             # PCA9685 通道: 右大灯
+HEADLIGHT_PHYSICAL_PIN = 33       # 40-pin 物理引脚
+HEADLIGHT_WPI_PIN = 22            # wiringOP 编号；PWM 模式由 overlay 接管
+HEADLIGHT_PWM_OVERLAY = "pwm15-m2"
+
+# 旧 PCA9685 大灯驱动仍待 P8-01 替换。设为 None 使误启用时失败关闭，
+# 防止占用已分配给前云台的 CH0/1。
+LED_LEFT_CHANNEL: None = None
+LED_RIGHT_CHANNEL: None = None
 LED_PWM_FREQ = 1000               # PWM 频率 (Hz)
 LED_DEFAULT_BRIGHTNESS = 80       # 默认大灯亮度 (0-100)
 
@@ -124,8 +172,11 @@ STRIP_COLOR_REVERSE = (255, 255, 255) # 倒车: 白色
 # ============================================================
 #  舵机 (PCA9685 + SG90) — Phase 4
 # ============================================================
-SERVO_PAN_CHANNEL = 2             # PCA9685 通道: 水平舵机 (ch0/1 已被大灯占用)
-SERVO_TILT_CHANNEL = 3            # PCA9685 通道: 垂直舵机
+SERVO_FRONT_PAN_CHANNEL = 0       # 前云台水平
+SERVO_FRONT_TILT_CHANNEL = 1      # 前云台垂直
+SERVO_SCAN_CHANNEL = 2            # 可选前超声波扫描舵机
+SERVO_REAR_PAN_CHANNEL = 3        # 后云台水平
+SERVO_REAR_TILT_CHANNEL = 4       # 后云台垂直
 
 # 云台角度限位 (0-180, 中位 90)
 GIMBAL_PAN_MIN = 10               # 水平最小角度
@@ -139,12 +190,12 @@ GIMBAL_TRACKING_GAIN = 5.0        # 自动追踪增益 (度/偏移量)
 #  超声波 (HC-SR04 × 2) — Phase 6
 # ============================================================
 # 前方 HC-SR04 (GPIO wPi 编号)
-US_FRONT_TRIG = 21                # wPi 21, 物理引脚 29
-US_FRONT_ECHO = 22                # wPi 22, 物理引脚 31 (需 5V→3.3V 分压)
+US_FRONT_TRIG = 19                # wPi 19, 物理引脚 29
+US_FRONT_ECHO = 20                # wPi 20, 物理引脚 31；3.3V 供电时直连
 
 # 后方 HC-SR04
-US_REAR_TRIG = 23                 # wPi 23, 物理引脚 33 (PWM15 复用为 GPIO)
-US_REAR_ECHO = 24                 # wPi 24, 物理引脚 35 (需 5V→3.3V 分压)
+US_REAR_TRIG = 23                 # wPi 23, 物理引脚 35
+US_REAR_ECHO = 25                 # wPi 25, 物理引脚 37；3.3V 供电时直连
 
 US_SCAN_INTERVAL = 0.1            # 扫描间隔 (秒)
 US_FRONT_STOP_DISTANCE = 25.0     # 前方停车距离 (cm)

@@ -4,7 +4,7 @@ drivers/servo/protocol.py — 舵机驱动接口定义
 所有舵机驱动 (Real / Mock) 都必须实现这个 Protocol。
 上层代码只依赖这个接口,不依赖具体实现。
 
-舵机通过 PCA9685 I2C PWM 驱动 (与前大灯共用同一块 PCA9685)。
+舵机通过 PCA9685 I2C PWM 驱动；大灯已迁移到 Pin 33，不再占用 PCA9685。
 """
 
 from typing import Protocol

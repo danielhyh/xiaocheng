@@ -55,6 +55,21 @@ async def test_cmd_brake_temporarily_suppresses_stale_motion():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("command_type", ["cmd.motion", "cmd.brake"])
+async def test_motion_commands_fail_closed_when_subsystem_is_disabled(command_type):
+    dispatcher = Dispatcher(None, ModeManager())
+
+    reply = await dispatcher.dispatch({
+        "type": command_type,
+        "id": "disabled-motion",
+        "payload": {"vx": 0, "vy": 1},
+    })
+
+    assert reply is not None
+    assert reply["payload"] == {"error": "motion not available"}
+
+
+@pytest.mark.asyncio
 async def test_manual_motion_is_ignored_outside_manual_mode():
     class TrackModeManager:
         current = Mode.TRACK

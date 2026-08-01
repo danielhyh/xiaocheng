@@ -7,14 +7,19 @@ api/stream.py — MJPEG 视频流端点
 独立于 WebSocket 通道,避免 binary 帧干扰 JSON 指令。
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse, JSONResponse
 
-from app.subsystems.vision import VisionSubsystem
 from app import config
+
+if TYPE_CHECKING:
+    from app.subsystems.vision import VisionSubsystem
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +29,7 @@ router = APIRouter()
 _vision: VisionSubsystem | None = None
 
 
-def init(vision: VisionSubsystem) -> None:
+def init(vision: VisionSubsystem | None) -> None:
     global _vision
     _vision = vision
 
